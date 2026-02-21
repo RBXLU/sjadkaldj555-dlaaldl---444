@@ -16,7 +16,7 @@ from groq import Groq
 from bussines_bot import register_business_handlers
 
 # ---------- BOT SETUP ----------
-TOKEN = "8413993403:AAFL8-2J4byWxkEwvvTFzuQ05Pcs6ypncn8"
+TOKEN = "8317148699:AAFZn4dZzKlBpivEKUYDbPcR4wL8iDgMMc8"
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook()
 
