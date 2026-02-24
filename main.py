@@ -1399,7 +1399,7 @@ def settext_cmd(message):
     )
 
 
-@bot.message_handler(commands=["messagenot"])
+@bot.message_handler(commands=["sisiras"])
 def messagenot_cmd(message):
     uid = message.from_user.id
     # only allow if subscribed
