@@ -1,0 +1,340 @@
+{
+  "users": {
+    "5782683757": {
+      "streak_current": 2,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 2,
+      "display_name": "Mr. Пасхалко",
+      "count": 0,
+      "date": "2026-02-22",
+      "premium_until": 0,
+      "pending": {
+        "f34900c303f24eb09f80ddbc2dc3a269": {
+          "q": "привет",
+          "a": "❌ Ошибка при получении ответа",
+          "status": "done"
+        },
+        "4771a942fc594a1992f316b208e10473": {
+          "q": "привет",
+          "a": "❌ Ошибка при получении ответа",
+          "status": "done"
+        },
+        "65fdffeb42084657b72f7119015b1ce1": {
+          "q": "пр",
+          "a": null,
+          "status": "wait"
+        },
+        "25cfc8750a454ac280c65511fd17434a": {
+          "q": "прве",
+          "a": null,
+          "status": "wait"
+        },
+        "386722ff640f41909b9fbfac18ea60f3": {
+          "q": "прве",
+          "a": null,
+          "status": "wait"
+        },
+        "f2feeaaee7ae4fd9acc4c0464842cd93": {
+          "q": "првет!",
+          "a": "❌ Ошибка при получении ответа",
+          "status": "done"
+        },
+        "e2d92517b38e458aa48b1e81ff5e47ec": {
+          "q": "привет",
+          "a": null,
+          "status": "wait"
+        },
+        "f398fd1aaaca433c8f4cc0da0044b540": {
+          "q": "привет! что делае",
+          "a": null,
+          "status": "wait"
+        },
+        "529b03dad7714ceda8475aef35c4d570": {
+          "q": "привет! что делаешь",
+          "a": "❌ Ошибка при получении ответа",
+          "status": "done"
+        }
+      },
+      "started": true,
+      "daily_date": "2026-02-21",
+      "daily_count": 4
+    },
+    "6774558397": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 2,
+      "display_name": "ᴋᴇʏʟɪᴍʙᴀ"
+    },
+    "8008596716": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-21",
+      "streak_best": 1,
+      "display_name": "Nozanin",
+      "count": 0,
+      "date": "2026-02-21",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6480477757": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-21",
+      "streak_best": 1,
+      "display_name": "Ef ᴛhᴇ Fᴏx🦊🩷🩵🌀⏺️",
+      "count": 0,
+      "date": "2026-02-21",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6843842522": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-21",
+      "streak_best": 1,
+      "display_name": "Kosuak",
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [
+          "$ help",
+          "Команды: help/помощь, date/дата, uptime/аптайм, ls/файлы, notes/заметки, whoami/ктоя, clear/очистить"
+        ],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1771664937
+      }
+    },
+    "6695830312": {
+      "streak_current": 2,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 2,
+      "display_name": "Вы",
+      "count": 0,
+      "date": "2026-02-24",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6630327084": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-21",
+      "streak_best": 1,
+      "display_name": "Чимин"
+    },
+    "1662076600": {
+      "streak_current": 2,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 2,
+      "display_name": "Денчик",
+      "count": 0,
+      "date": "2026-02-21",
+      "premium_until": 0,
+      "pending": {
+        "8fa10b909ba14f32a736f1df44b12b7a": {
+          "q": "8",
+          "a": null,
+          "status": "wait"
+        }
+      }
+    },
+    "8284729373": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-21",
+      "streak_best": 1,
+      "display_name": "main.py",
+      "count": 0,
+      "date": "2026-02-21",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "1606731095": {
+      "streak_current": 2,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 2,
+      "display_name": "〣 𝙆𝘶𝘳𝘢𝘨𝘢 ׅ݁ ׄ"
+    },
+    "8528865033": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 1,
+      "display_name": "Ss 🦈",
+      "count": 0,
+      "date": "2026-02-22",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "telos": {
+        "booted": false,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1771796764
+      }
+    },
+    "8259576801": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 1,
+      "display_name": "❄️ SKVRT SHOP ALMATY ❄️"
+    },
+    "5496433524": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 1,
+      "display_name": "Vali",
+      "count": 0,
+      "date": "2026-02-22",
+      "premium_until": 0,
+      "pending": {
+        "1850b36fb556448a8058f8d1ca6be691": {
+          "q": "в любом чате!",
+          "a": null,
+          "status": "wait"
+        },
+        "9c1f7a82a2094327bb6f2eeee0429c26": {
+          "q": "в любом чате",
+          "a": null,
+          "status": "wait"
+        }
+      },
+      "started": true
+    },
+    "5250289209": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 1,
+      "display_name": "Shahzod",
+      "count": 0,
+      "date": "2026-02-22",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6580621151": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-22",
+      "streak_best": 1,
+      "display_name": "xam1n"
+    },
+    "6651402223": {
+      "streak_current": 2,
+      "streak_last_day": "2026-02-23",
+      "streak_best": 2,
+      "display_name": "_who_am_i_"
+    },
+    "8305883073": {
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": 5
+        },
+        "created_at": 1771796770
+      }
+    },
+    "6397420298": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-23",
+      "streak_best": 1,
+      "display_name": "Типок 🥷🏻",
+      "count": 0,
+      "date": "2026-02-23",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "8128622150": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-23",
+      "streak_best": 1,
+      "display_name": "Furor"
+    },
+    "8190640305": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-23",
+      "streak_best": 1,
+      "display_name": "@TsarCryp",
+      "count": 0,
+      "date": "2026-02-23",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "7542140572": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-23",
+      "streak_best": 1,
+      "display_name": "Жека кисель"
+    },
+    "6265401112": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 1,
+      "display_name": "❤️"
+    },
+    "5039804212": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 1,
+      "display_name": "деффер",
+      "count": 0,
+      "date": "2026-02-24",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "8544831761": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 1,
+      "display_name": "Nurislam",
+      "count": 0,
+      "date": "2026-02-24",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    }
+  },
+  "premium": {},
+  "broadcast": {
+    "msg": "T",
+    "btn_text": "",
+    "btn_type": "none",
+    "btn_link": ""
+  }
+}
