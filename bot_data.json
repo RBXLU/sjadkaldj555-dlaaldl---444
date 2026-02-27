@@ -2,11 +2,11 @@
   "users": {
     "5782683757": {
       "streak_current": 2,
-      "streak_last_day": "2026-02-22",
+      "streak_last_day": "2026-02-27",
       "streak_best": 2,
       "display_name": "Mr. Пасхалко",
-      "count": 0,
-      "date": "2026-02-22",
+      "count": 1,
+      "date": "2026-02-27",
       "premium_until": 0,
       "pending": {
         "f34900c303f24eb09f80ddbc2dc3a269": {
@@ -53,16 +53,36 @@
           "q": "привет! что делаешь",
           "a": "❌ Ошибка при получении ответа",
           "status": "done"
+        },
+        "ab07c462ee40454ca6bf3249ab04cae3": {
+          "q": "привет",
+          "a": null,
+          "status": "wait"
+        },
+        "46ac82c99e364b0285767fc667fb10cb": {
+          "q": "привет ш",
+          "a": null,
+          "status": "wait"
+        },
+        "9b6f050d71dd46198d7ff3606cfa051f": {
+          "q": "привет",
+          "a": null,
+          "status": "wait"
+        },
+        "97f4836631114211b6dbc9cd99976367": {
+          "q": "привет 👋",
+          "a": "❌ Ошибка при получении ответа",
+          "status": "done"
         }
       },
       "started": true,
-      "daily_date": "2026-02-21",
-      "daily_count": 4
+      "daily_date": "2026-02-27",
+      "daily_count": 1
     },
     "6774558397": {
-      "streak_current": 1,
-      "streak_last_day": "2026-02-24",
-      "streak_best": 2,
+      "streak_current": 4,
+      "streak_last_day": "2026-02-27",
+      "streak_best": 4,
       "display_name": "ᴋᴇʏʟɪᴍʙᴀ"
     },
     "8008596716": {
@@ -124,7 +144,37 @@
       "date": "2026-02-24",
       "premium_until": 0,
       "pending": {},
-      "started": true
+      "started": true,
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          },
+          {
+            "name": "Sexret.txt",
+            "content": "Я уже наделал макеты новой игры... А команда будет SE games ! Просокод secretsegames"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [
+          "$ clear",
+          "История очищена.",
+          "$ help",
+          "Команды: help/помощь, date/дата, uptime/аптайм, ls/файлы, notes/заметки, whoami/ктоя, clear/очистить",
+          "$ $whoiam",
+          "Команда не найдена. Введите help."
+        ],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1771958690
+      }
     },
     "6630327084": {
       "streak_current": 1,
@@ -280,9 +330,28 @@
     },
     "8128622150": {
       "streak_current": 1,
-      "streak_last_day": "2026-02-23",
+      "streak_last_day": "2026-02-25",
       "streak_best": 1,
-      "display_name": "Furor"
+      "display_name": "Furor",
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1772051285
+      }
     },
     "8190640305": {
       "streak_current": 1,
@@ -328,11 +397,227 @@
       "premium_until": 0,
       "pending": {},
       "started": true
+    },
+    "8285486377": {
+      "streak_current": 2,
+      "streak_last_day": "2026-02-25",
+      "streak_best": 2,
+      "display_name": "мяу",
+      "count": 0,
+      "date": "2026-02-24",
+      "premium_until": 0,
+      "pending": {
+        "5c260ee320aa435889258a5be7260d08": {
+          "q": "т",
+          "a": null,
+          "status": "wait"
+        },
+        "9af516b0c49b457db321e86ef899ec01": {
+          "q": "_",
+          "a": null,
+          "status": "wait"
+        }
+      },
+      "started": true
+    },
+    "8432479042": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 1,
+      "display_name": "Islam",
+      "count": 0,
+      "date": "2026-02-24",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "7292519159": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 1,
+      "display_name": "°•†\\ ⓎⒶⓚ/†•°",
+      "count": 0,
+      "date": "2026-02-24",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [
+          "Ти дебил",
+          "Я дебил",
+          "Урааа"
+        ],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1771964367
+      }
+    },
+    "5233833193": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-24",
+      "streak_best": 1,
+      "display_name": "Mir_fw22"
+    },
+    "8475323979": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-25",
+      "streak_best": 1,
+      "display_name": "𝓕𝓸𝓵𝓵𝓸𝔀 𝔂𝓸𝓾𝓻 𝓱𝓮𝓪𝓻𝓽",
+      "count": 0,
+      "date": "2026-02-25",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "7823055646": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-25",
+      "streak_best": 1,
+      "display_name": "Гусь",
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": 7
+        },
+        "created_at": 1772028308
+      }
+    },
+    "1248089501": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-25",
+      "streak_best": 1,
+      "display_name": "Денис",
+      "count": 0,
+      "date": "2026-02-25",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1772028311
+      }
+    },
+    "7699102346": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-25",
+      "streak_best": 1,
+      "display_name": "Савелий #DD"
+    },
+    "6644275327": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-26",
+      "streak_best": 1,
+      "display_name": "SENEYRO_GHISN",
+      "count": 0,
+      "date": "2026-02-26",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "1968911204": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-26",
+      "streak_best": 1,
+      "display_name": "Смешной Валентин | О5-1",
+      "count": 0,
+      "date": "2026-02-26",
+      "premium_until": 0,
+      "pending": {
+        "59adc1777076479b98d4e2c73e69677d": {
+          "q": "Мхуяли",
+          "a": null,
+          "status": "wait"
+        },
+        "0b42eee0a8e9477aae79dc21fbc4cde6": {
+          "q": "Схуяли",
+          "a": null,
+          "status": "wait"
+        }
+      }
+    },
+    "7919222381": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-27",
+      "streak_best": 1,
+      "display_name": "люблю лилю",
+      "count": 0,
+      "date": "2026-02-27",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "1454839892": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-27",
+      "streak_best": 1,
+      "display_name": "Artem",
+      "count": 0,
+      "date": "2026-02-27",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "8338380529": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-27",
+      "streak_best": 1,
+      "display_name": "Gogol"
+    },
+    "7715886326": {
+      "streak_current": 1,
+      "streak_last_day": "2026-02-27",
+      "streak_best": 1,
+      "display_name": "DSI/remember",
+      "count": 0,
+      "date": "2026-02-27",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
     }
   },
   "premium": {},
   "broadcast": {
-    "msg": "T",
+    "msg": "‼️ Внимание!! Аккаунт @pywriteer был взломан и его владелец больше не несёт ответственности за сообщения с него.",
     "btn_text": "",
     "btn_type": "none",
     "btn_link": ""
