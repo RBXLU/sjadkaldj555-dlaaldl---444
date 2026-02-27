@@ -16,12 +16,12 @@ from groq import Groq
 from bussines_bot import register_business_handlers
 
 # ---------- BOT SETUP ----------
-TOKEN = "8317148699:AAFZn4dZzKlBpivEKUYDbPcR4wL8iDgMMc8"
+TOKEN = "8413993403:AAFL8-2J4byWxkEwvvTFzuQ05Pcs6ypncn8"
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook()
 
 # ---------- CONFIGURATION ----------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 FREE_DAILY_QUOTA = 10
@@ -517,6 +517,7 @@ quiz_games = {}  # gid -> {"question": str, "answer": str, "p1": id, "p2": id, "
 combo_games = {}  # gid -> {"p1": id, "p2": id, "p1_choice": str, "p2_choice": str, "round": int, "scores": {}}
 wordle_games = {}  # gid -> {"owner": int, "target": str, "attempts": list, "current": str, "status": str}
 chess_games = {}  # gid -> chess game state
+battleship_games = {}  # gid -> battleship game state
 
 WORDLE_WORDS = [
     "абзац", "аванс", "аврал", "автор", "агент", "адрес", "азарт", "актер",
@@ -1092,28 +1093,51 @@ def eng_keyboard():
     return kb
 
 def ask_ai(prompt: str, user_id: int) -> str:
-    try:
-        if not prompt.strip():
-            return "⚠️ Напиши вопрос текстом"
+    if not prompt.strip():
+        return "⚠️ Напиши вопрос текстом"
 
-        mode = user_ai_mode.get(user_id, "chat")
-        system_prompt = AI_MODES.get(mode, AI_MODES["chat"])
+    mode = user_ai_mode.get(user_id, "chat")
+    system_prompt = AI_MODES.get(mode, AI_MODES["chat"])
 
-        chat = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt[:2000]}
-            ],
-            temperature=0.7,
-            max_tokens=900
+    def _is_retryable_ai_error(err: Exception) -> bool:
+        msg = str(err).lower()
+        retry_markers = (
+            "client_responce_parse_failed",
+            "client_response_parse_failed",
+            "timeout",
+            "timed out",
+            "connection",
+            "temporar",
+            "429",
+            "rate limit",
+            "service unavailable",
+            "bad gateway",
         )
+        return any(marker in msg for marker in retry_markers)
 
-        return chat.choices[0].message.content
+    last_err = None
+    for attempt in range(3):
+        try:
+            chat = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt[:2000]}
+                ],
+                temperature=0.7,
+                max_tokens=900
+            )
+            return chat.choices[0].message.content
+        except Exception as e:
+            last_err = e
+            print(f"AI ERROR attempt {attempt + 1}/3:", repr(e))
+            if attempt < 2 and _is_retryable_ai_error(e):
+                time.sleep(1.2 + attempt)
+                continue
+            break
 
-    except Exception as e:
-        print("AI ERROR:", repr(e))
-        return "❌ Ошибка при получении ответа"
+    print("AI FINAL ERROR:", repr(last_err))
+    return "❌ Временная ошибка AI-сервиса. Нажмите «Обновить» или «Получить ответ» ещё раз."
 
 # ------------------- TTT (улучшённый модуль) -------------------
 def _user_display_name_from_id(uid):
@@ -1399,7 +1423,7 @@ def settext_cmd(message):
     )
 
 
-@bot.message_handler(commands=["sisiras"])
+@bot.message_handler(commands=["messagenot"])
 def messagenot_cmd(message):
     uid = message.from_user.id
     # only allow if subscribed
@@ -1480,7 +1504,7 @@ def messagenot_callback(call):
         bot.answer_callback_query(call.id, "Ошибка в редакторе сообщений")
 
 
-@bot.callback_query_handler(func=lambda c: c.data in ("messagenot_type_link","messagenot_type_none"))
+@bot.callback_query_handler(func=lambda c: c.data.startswith(("messagenot_type_link", "messagenot_type_none")))
 def messagenot_type_choice(call):
     try:
         uid = call.from_user.id
@@ -1680,10 +1704,6 @@ def hangman_message(message):
 def minesweeper_message(message):
     start_minesweeper_in_chat(message.chat.id)
 
-@bot.message_handler(commands=["minesweeper", "saper"])
-def minesweeper_command(message):
-    start_minesweeper_in_chat(message.chat.id)
-
 @bot.message_handler(func=lambda m: m.text == "🔤 Викторина")
 def quiz(message):
     bot.send_message(message.chat.id, "Чтобы играть в викторину - напишите <code>@minigamesisbot</code> в любом чате!", parse_mode="HTML")
@@ -1696,6 +1716,35 @@ def combo(message):
 def play(message):
     bot.send_message(message.chat.id, "Чтобы играть — используй инлайн через @YourBotUsername в любом чате!")
 
+
+def _ai_prompt_status_text(status):
+    mapping = {
+        "wait": "⏳ ожидание..",
+        "process": "⏳ ответ генерируется..",
+        "done": "✅ готово",
+    }
+    return mapping.get(status, "⏳ ожидание..")
+
+
+def _ai_prompt_message(question, status, answer=None):
+    text = (
+        f"💬 Вопрос:\n{str(question or '').strip()}\n\n"
+        f"Статус: {_ai_prompt_status_text(status)}"
+    )
+    if status == "done":
+        text += "\n\n🤖 Ответ:\n" + str(answer or "")
+    return text[:3900]
+
+
+def _ai_prompt_kb(uid, rid):
+    kb = types.InlineKeyboardMarkup()
+    kb.row(
+        types.InlineKeyboardButton("📩 Получить ответ", callback_data=f"ai_{uid}_{rid}"),
+        types.InlineKeyboardButton("🔄 Обновить", callback_data=f"ai_refresh_{uid}_{rid}"),
+    )
+    return kb
+
+
 @bot.inline_handler(lambda q: q.query.strip() != "")
 def ai_inline(query):
     uid = query.from_user.id
@@ -1705,6 +1754,19 @@ def ai_inline(query):
         return inline_subscription_prompt(query)
     text = query.query.strip()
     normalized = text.lower().strip()
+    if normalized in ("\u043c\u043e\u0440\u0441\u043a\u043e\u0439 \u0431\u043e\u0439", "\u043c\u043e\u0440\u0441\u043a\u043e\u0439\u0431\u043e\u0439", "battleship", "bship"):
+        bgid = short_id()
+        battleship_games[bgid] = _bship_new_game(uid, query.from_user.first_name or query.from_user.username or str(uid))
+        result = types.InlineQueryResultArticle(
+            id=f"bship_{bgid}",
+            title="\U0001f6a2 \u041c\u043e\u0440\u0441\u043a\u043e\u0439 \u0431\u043e\u0439",
+            description="\u041f\u043e\u0448\u0430\u0433\u043e\u0432\u0430\u044f \u0438\u0433\u0440\u043e\u043a\u043e\u0432",
+            input_message_content=types.InputTextMessageContent(_bship_public_text(battleship_games[bgid])),
+            reply_markup=_bship_public_keyboard(bgid, battleship_games[bgid]),
+        )
+        bot.answer_inline_query(query.id, [result], cache_time=1, is_personal=True)
+        return
+
 
     if normalized in ("шахматы", "шах", "chess"):
         cgid = short_id()
@@ -1742,17 +1804,13 @@ def ai_inline(query):
     }
     save_data(data)
 
-    kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("📩 Получить ответ", callback_data=f"ai_{uid}_{req_id}"))
+    kb = _ai_prompt_kb(uid, req_id)
 
     result = types.InlineQueryResultArticle(
         id=req_id,
         title="🤖 Спросить ChatGPT",
         description=text[:60],
-        input_message_content=types.InputTextMessageContent(
-            f"💬 *Вопрос:*\n{text}",
-            parse_mode="Markdown"
-        ),
+        input_message_content=types.InputTextMessageContent(_ai_prompt_message(text, "wait")),
         reply_markup=kb
     )
 
@@ -1832,6 +1890,17 @@ def inline_handler(query):
             description="Угадайте слово из 5 букв за 6 попыток",
             input_message_content=types.InputTextMessageContent(_wordle_render_text(wgame)),
             reply_markup=_wordle_keyboard(wgid, wgame)
+        ))
+
+        # Battleship
+        bgid = short_id()
+        battleship_games[bgid] = _bship_new_game(starter_id, user.first_name or user.username or str(starter_id))
+        results.append(types.InlineQueryResultArticle(
+            id=f"bship_{bgid}",
+            title="\U0001f6a2 \u041c\u043e\u0440\u0441\u043a\u043e\u0439 \u0431\u043e\u0439",
+            description="\u041f\u043e\u0448\u0430\u0433\u043e\u0432\u0430\u044f \u0438\u0433\u0440\u043e\u043a\u043e\u0432",
+            input_message_content=types.InputTextMessageContent(_bship_public_text(battleship_games[bgid])),
+            reply_markup=_bship_public_keyboard(bgid, battleship_games[bgid])
         ))
 
         # Chess
@@ -2367,35 +2436,6 @@ def hide_secret(call):
     cell = int(cell)
     game = hide_games.get(gid)
 
-    if not game or call.from_user.id != game["host"]:
-        return
-
-    game["secret"] = cell
-
-    kb = hide_keyboard(f"hide_guess_{gid}")
-
-    bot.edit_message_text(
-        "🔍 *Игрок 2, угадывай!*\nПопыток: 5",
-        inline_message_id=call.inline_message_id,
-        reply_markup=kb,
-        parse_mode="Markdown"
-    )
-    bot.answer_callback_query(call.id)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("hide_guess_"))
-def hide_guess(call):
-    parts = call.data.split("_")
-    if len(parts) == 3:
-        _, gid, cell = parts
-    elif len(parts) == 4:
-        _, _, gid, cell = parts
-    else:
-        bot.answer_callback_query(call.id, "❌ Неверный формат данных")
-        return
-
-    cell = int(cell)
-    game = hide_games.get(gid)
-
     if not game or game["finished"]:
         bot.answer_callback_query(call.id, "Игра завершена")
         return
@@ -2535,7 +2575,17 @@ def rps_join(call):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("ai_"))
 def ai_callback(call):
     try:
-        _, uid, rid = call.data.split("_")
+        parts = call.data.split("_")
+        action = "get"
+        if len(parts) == 4 and parts[1] == "refresh":
+            _, _, uid, rid = parts
+            action = "refresh"
+        elif len(parts) == 3:
+            _, uid, rid = parts
+        else:
+            bot.answer_callback_query(call.id, "Неверные данные")
+            return
+
         uid = int(uid)
         if call.from_user.id != uid:
             bot.answer_callback_query(call.id, "Это не ваш запрос")
@@ -2551,14 +2601,34 @@ def ai_callback(call):
         if not req:
             bot.answer_callback_query(call.id, "Запрос устарел")
             return
+        status = str(req.get("status", "wait")).strip().lower()
+        if status not in ("wait", "process", "done"):
+            status = "wait"
+        if req.get("status") != status:
+            req["status"] = status
+            save_data(data)
+
+        # Для кнопки "Обновить" только читаем статус из JSON.
+        if action == "refresh":
+            if status == "done":
+                safe_edit_message(call, _ai_prompt_message(req.get("q"), "done", req.get("a")), reply_markup=_ai_prompt_kb(uid, rid))
+                bot.answer_callback_query(call.id, "✅ Ответ готов")
+            elif status == "process":
+                safe_edit_message(call, _ai_prompt_message(req.get("q"), "process"), reply_markup=_ai_prompt_kb(uid, rid))
+                bot.answer_callback_query(call.id, "⏳ Ответ ещё генерируется…")
+            else:
+                safe_edit_message(call, _ai_prompt_message(req.get("q"), "wait"), reply_markup=_ai_prompt_kb(uid, rid))
+                bot.answer_callback_query(call.id, "⏳ Ожидание запуска")
+            return
 
         # если ещё не считали — запускаем
-        if req["status"] == "wait":
+        if status == "wait":
             allow, err = can_use_ai(uid)
             if not allow:
                 bot.answer_callback_query(call.id, err, show_alert=True)
                 return
             req["status"] = "process"
+            req["started_at"] = int(time.time())
             save_data(data)
 
             def work():
@@ -2570,6 +2640,8 @@ def ai_callback(call):
                     pending2 = u2.setdefault("pending", {})
                     req2 = pending2.get(rid)
                     if req2 is None:
+                        return
+                    if req2.get("status") != "process":
                         return
 
                     # списываем лимит только после фактического получения ответа
@@ -2593,37 +2665,33 @@ def ai_callback(call):
                     pending3 = u3.setdefault("pending", {})
                     req3 = pending3.get(rid)
                     if req3 is not None:
-                        req3["a"] = f"Ошибка AI: {e}"
+                        req3["a"] = "❌ Временная ошибка AI-сервиса. Нажмите «Обновить» или «Получить ответ» ещё раз."
                         req3["status"] = "done"
                         save_data(d3)
 
             Thread(target=work, daemon=True).start()
+            safe_edit_message(call, _ai_prompt_message(req.get("q"), "process"), reply_markup=_ai_prompt_kb(uid, rid))
             bot.answer_callback_query(call.id, "⏳ Готовлю ответ…")
             return
 
-        # если готово
-        if req["status"] == "done":
-            answer = req["a"]
-
-            # 🔹 КОРОТКИЙ → alert
-            if len(answer) <= 180:
-                bot.answer_callback_query(call.id, "✅ Ответ готов!")
-                bot.send_message(call.from_user.id, f"🤖 Ответ:\n\n{answer[:4000]}")
-
+        if status == "process":
+            started_at = int(req.get("started_at", 0) or 0)
+            if started_at and (int(time.time()) - started_at) > 180:
+                req["status"] = "done"
+                req["a"] = "❌ Ответ не был получен вовремя (таймаут 3 минуты). Нажмите «Получить ответ» ещё раз."
+                save_data(data)
+                safe_edit_message(call, _ai_prompt_message(req.get("q"), "done", req.get("a")), reply_markup=_ai_prompt_kb(uid, rid))
+                bot.answer_callback_query(call.id, "⌛ Таймаут запроса")
                 return
+            safe_edit_message(call, _ai_prompt_message(req.get("q"), "process"), reply_markup=_ai_prompt_kb(uid, rid))
+            bot.answer_callback_query(call.id, "⏳ Ответ ещё генерируется…")
+            return
 
-            # 🔹 ДЛИННЫЙ → редактируем inline сообщение
-            text = (
-                "🤖 *Ответ ChatGPT:*\n\n"
-                + answer[:3900]  # запас
-            )
-
-            bot.edit_message_text(
-                text,
-                inline_message_id=call.inline_message_id,
-                parse_mode="Markdown"
-            )
-            bot.answer_callback_query(call.id)
+        # если готово
+        if status == "done":
+            answer = req["a"]
+            safe_edit_message(call, _ai_prompt_message(req.get("q"), "done", answer), reply_markup=_ai_prompt_kb(uid, rid))
+            bot.answer_callback_query(call.id, "✅ Ответ готов!")
             return
 
     except Exception as e:
@@ -3505,18 +3573,6 @@ def generate_minesweeper_board(size=5, mines=5):
                     board[nx][ny] += 1
     return board, mine_positions
 
-def generate_minesweeper_board(size=5, mines=5):
-    board = [[0 for _ in range(size)] for _ in range(size)]
-    mine_positions = random.sample([(i, j) for i in range(size) for j in range(size)], mines)
-    for x, y in mine_positions:
-        board[x][y] = -1
-        for dx in [-1,0,1]:
-            for dy in [-1,0,1]:
-                nx, ny = x+dx, y+dy
-                if 0 <= nx < size and 0 <= ny < size and board[nx][ny] != -1:
-                    board[nx][ny] += 1
-    return board, mine_positions
-
 # ------------------- HANGMAN (Виселица) -------------------
 def render_hangman(game):
     word = game["word"]
@@ -3899,6 +3955,7 @@ def inline_word_duel(query):
     )]
     
     bot.answer_inline_query(query.id, results, cache_time=1, is_personal=True)
+
 # ------------------- ВИКТОРИНА "КТО БЫСТРЕЕ" -------------------
 @bot.inline_handler(lambda q: q.query.lower() == "викторина" or q.query.lower() == "quiz")
 def inline_quiz_game(query):
@@ -4031,127 +4088,99 @@ def mafia_callback(call):
         uname = call.from_user.first_name or "Игрок"
 
         if action == "join":
-            if game.get("phase") != "lobby":
+            if game.get("status") != "waiting":
                 bot.answer_callback_query(call.id, "Игра уже началась", show_alert=True)
                 return
-            if uid not in game["players"]:
-                if len(game["players"]) >= 10:
-                    bot.answer_callback_query(call.id, "Лобби заполнено (макс. 10)", show_alert=True)
-                    return
-                game["players"].append(uid)
-                game["alive"].append(uid)
-            game["names"][uid] = uname
-            game["last_event"] = f"Присоединился: {uname}"
-            safe_edit_message(call, mafia_render_text(game), reply_markup=mafia_build_lobby_kb(gid))
-            bot.answer_callback_query(call.id, "Вы в игре")
+            if uid == game.get("p1"):
+                bot.answer_callback_query(call.id, "Нужен второй игрок")
+                return
+            game["p2"] = uid
+            game["p2_name"] = call.from_user.first_name or call.from_user.username or str(uid)
+            size = game.get("size", 5)
+            ships_count = game.get("ships_count", 5)
+            game.setdefault("ships", {})[uid] = _bship_random_ships(size, ships_count)
+            game.setdefault("shots", {})[uid] = set()
+            game["status"] = "playing"
+            game["turn"] = game.get("p1")
+
+            safe_edit_message(call, _bship_render_text(game, uid), reply_markup=_bship_keyboard(gid, game, uid))
+            bot.answer_callback_query(call.id, "Партия началась")
             return
 
-        if action == "start":
-            if uid != game.get("owner"):
-                bot.answer_callback_query(call.id, "Только создатель может начать", show_alert=True)
+        if action == "new":
+            if uid not in (game.get("p1"), game.get("p2")):
+                bot.answer_callback_query(call.id, "Это не ваша партия")
                 return
-            if game.get("phase") != "lobby":
-                bot.answer_callback_query(call.id, "Игра уже идет")
-                return
-            n = len(game.get("players", []))
-            if n < 4:
-                bot.answer_callback_query(call.id, "Нужно минимум 4 игрока", show_alert=True)
-                return
-            game["roles"] = mafia_assign_roles(game["players"])
-            game["phase"] = "night"
-            game["last_event"] = "Игра началась. Наступила ночь."
-            safe_edit_message(call, mafia_render_text(game), reply_markup=mafia_build_night_kb(gid, game))
-            bot.answer_callback_query(call.id, "Старт")
+            new_game = _chess_new_game(uid, call.from_user.first_name or call.from_user.username or str(uid))
+            chess_games[gid] = new_game
+            safe_edit_message(call, _chess_render_text(new_game), reply_markup=_chess_keyboard(gid, new_game))
+            bot.answer_callback_query(call.id, "Новая партия")
             return
 
-        if action == "role":
-            role = game.get("roles", {}).get(uid)
-            if not role:
-                bot.answer_callback_query(call.id, "Роль пока не назначена", show_alert=True)
+        if action == "reset":
+            if game.get("status") != "playing":
+                bot.answer_callback_query(call.id)
                 return
-            ru = {"mafia": "Мафия", "doctor": "Доктор", "detective": "Детектив", "citizen": "Мирный"}
-            bot.answer_callback_query(call.id, f"Ваша роль: {ru.get(role, role)}", show_alert=True)
+            if uid not in (game.get("p1"), game.get("p2")):
+                bot.answer_callback_query(call.id, "Это не ваша партия")
+                return
+            game["selected"] = None
+            safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
+            bot.answer_callback_query(call.id, "Сброшено")
             return
 
-        if uid not in game.get("alive", []):
-            bot.answer_callback_query(call.id, "Вы выбыли из игры", show_alert=True)
-            return
+        if action == "c":
+            if len(parts) < 5:
+                bot.answer_callback_query(call.id, "Неверный ход")
+                return
+            if game.get("status") != "playing":
+                bot.answer_callback_query(call.id, "Партия не начата")
+                return
 
-        if action in ("nkill", "heal", "check"):
-            if game.get("phase") != "night":
-                bot.answer_callback_query(call.id, "Сейчас не ночь", show_alert=True)
+            player_color = _chess_get_player_color(game, uid)
+            if player_color is None:
+                bot.answer_callback_query(call.id, "Вы не участник этой партии")
                 return
-            if len(parts) < 4:
-                bot.answer_callback_query(call.id, "Неверные данные")
+            if player_color != game.get("turn"):
+                bot.answer_callback_query(call.id, "Сейчас не ваш ход")
                 return
-            target = int(parts[3])
-            if target not in game.get("alive", []):
-                bot.answer_callback_query(call.id, "Цель недоступна", show_alert=True)
-                return
-            role = game["roles"].get(uid)
-            if action == "nkill":
-                if role != "mafia":
-                    bot.answer_callback_query(call.id, "Это действие доступно только мафии", show_alert=True)
-                    return
-                if game["roles"].get(target) == "mafia":
-                    bot.answer_callback_query(call.id, "Нельзя выбрать мафию", show_alert=True)
-                    return
-                game["night"]["kill"] = target
-                bot.answer_callback_query(call.id, f"Цель выбрана: {game['names'].get(target,'Игрок')}")
-            elif action == "heal":
-                if role != "doctor":
-                    bot.answer_callback_query(call.id, "Это действие доступно только доктору", show_alert=True)
-                    return
-                game["night"]["heal"] = target
-                bot.answer_callback_query(call.id, f"Лечение: {game['names'].get(target,'Игрок')}")
-            else:
-                if role != "detective":
-                    bot.answer_callback_query(call.id, "Это действие доступно только детективу", show_alert=True)
-                    return
-                game["night"]["check"] = target
-                is_mafia = game["roles"].get(target) == "mafia"
-                res = "мафия" if is_mafia else "не мафия"
-                bot.answer_callback_query(call.id, f"{game['names'].get(target,'Игрок')} — {res}", show_alert=True)
 
-            need_kill = any(game["roles"].get(x) == "mafia" for x in game["alive"])
-            need_heal = any(game["roles"].get(x) == "doctor" for x in game["alive"])
-            need_check = any(game["roles"].get(x) == "detective" for x in game["alive"])
-            ready = (not need_kill or game["night"].get("kill") is not None) and \
-                    (not need_heal or game["night"].get("heal") is not None) and \
-                    (not need_check or game["night"].get("check") is not None)
-            if ready:
-                mafia_resolve_night(game)
-                winner = mafia_check_winner(game)
-                if winner:
-                    game["phase"] = "ended"
-                    game["last_event"] += "\n🏁 Победили " + ("мирные" if winner == "citizens" else "мафия")
-                    safe_edit_message(call, mafia_render_text(game))
-                else:
-                    safe_edit_message(call, mafia_render_text(game), reply_markup=mafia_build_day_kb(gid))
-            return
+            r = int(parts[3])
+            c = int(parts[4])
+            if not _chess_in_bounds(r, c):
+                bot.answer_callback_query(call.id, "Некорректная клетка")
+                return
 
-        if action == "vote":
-            if game.get("phase") != "day":
-                bot.answer_callback_query(call.id, "Сейчас не день", show_alert=True)
+            board = game["board"]
+            selected = game.get("selected")
+
+            if selected:
+                sr, sc = selected
+                legal = set(_chess_legal_moves(board, sr, sc))
+                if (r, c) in legal:
+                    _chess_apply_move(game, sr, sc, r, c)
+                    safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
+                    bot.answer_callback_query(call.id, "Ход выполнен")
+                    return
+                target = board[r][c]
+                if target and target[0] == player_color:
+                    game["selected"] = (r, c)
+                    safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
+                    bot.answer_callback_query(call.id, "Фигура выбрана")
+                    return
+                bot.answer_callback_query(call.id, "Сюда ходить нельзя")
                 return
-            if len(parts) < 4:
-                bot.answer_callback_query(call.id, "Неверные данные")
+
+            piece = board[r][c]
+            if not piece:
+                bot.answer_callback_query(call.id, "Выберите свою фигуру")
                 return
-            target = int(parts[3])
-            if target not in game.get("alive", []):
-                bot.answer_callback_query(call.id, "Цель недоступна", show_alert=True)
+            if piece[0] != player_color:
+                bot.answer_callback_query(call.id, "Это фигура соперника")
                 return
-            game["votes"][uid] = target
-            bot.answer_callback_query(call.id, f"Голос принят: {game['names'].get(target,'Игрок')}")
-            if len(game["votes"]) >= len(game.get("alive", [])):
-                mafia_resolve_day(game)
-                winner = mafia_check_winner(game)
-                if winner:
-                    game["phase"] = "ended"
-                    game["last_event"] += "\n🏁 Победили " + ("мирные" if winner == "citizens" else "мафия")
-                    safe_edit_message(call, mafia_render_text(game))
-                else:
-                    safe_edit_message(call, mafia_render_text(game), reply_markup=mafia_build_night_kb(gid, game))
+            game["selected"] = (r, c)
+            safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
+            bot.answer_callback_query(call.id, "Фигура выбрана")
             return
 
         bot.answer_callback_query(call.id)
@@ -4287,8 +4316,8 @@ def quizgame_join(call):
                 text += f"{p1_name}\n\n"
                 text += f"Нажмите «Присоединиться», чтобы начать игру."
                 safe_edit_message(call, text, reply_markup=kb, parse_mode="Markdown")
-            bot.answer_callback_query(call.id, "Ожидаем игроков", show_alert=False)
-            return
+                bot.answer_callback_query(call.id, "Ожидаем игроков", show_alert=False)
+                return
 
         if game.get("locked"):
             bot.answer_callback_query(call.id, "Игра уже началась", show_alert=True)
@@ -4310,7 +4339,7 @@ def quizgame_join(call):
 
         text = f"🧠 *Викторина*\n\n"
         text += f"❓ {game['question']}\n\n"
-        text += f"Игроки ({len(players)}/{max_players}):\n\n"
+        text += f"Игроки ({len(players)}/{game.get('max_players',4)}):\n\n"
         for pid in players:
             name = names.get(pid, "Игрок")
             status = "✅ ответ готов" if game["answered"].get(pid) else "⌨️ вводит" if game.get("started") else "⏳ ждёт"
@@ -4651,7 +4680,7 @@ def combo_choice(call):
                     text += f"Раунд {game['round']} из 3\n\n"
                     text += f"{p1_name}: ✅ выбрал\n"
                     text += f"{p2_name}: ⏳ ждём выбор\n\n"
-                    text += f"{p2_name} выбирает атаку:"
+                    text += f"{p1_name} выбирает атаку:"
                     kb = types.InlineKeyboardMarkup()
                     kb.row(
                         types.InlineKeyboardButton("⚡ Молния", callback_data=f"combo_{gid}_lightning"),
@@ -4811,6 +4840,454 @@ def wordle_callback(call):
     except Exception as e:
         print("WORDLE CALLBACK ERROR:", e)
         bot.answer_callback_query(call.id, "Ошибка Wordle")
+
+def _bship_random_ships(size=5, ships_count=5):
+    max_cells = max(1, size * size)
+    ships_count = max(1, min(ships_count, max_cells))
+    ships = set()
+    while len(ships) < ships_count:
+        ships.add((random.randint(0, size - 1), random.randint(0, size - 1)))
+    return ships
+
+
+def _bship_norm_cells(value):
+    out = set()
+    if isinstance(value, set):
+        iterable = value
+    elif isinstance(value, (list, tuple)):
+        iterable = value
+    else:
+        return out
+    for item in iterable:
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            try:
+                out.add((int(item[0]), int(item[1])))
+            except Exception:
+                pass
+    return out
+
+
+def _bship_new_game(owner_id, owner_name, size=5, ships_count=5):
+    size = max(3, min(8, int(size)))
+    ships_count = max(1, min(int(ships_count), size * size))
+    return {
+        "p1": owner_id,
+        "p2": None,
+        "p1_name": owner_name,
+        "p2_name": "",
+        "size": size,
+        "ships_count": ships_count,
+        "ships": {owner_id: _bship_random_ships(size, ships_count)},
+        "shots": {owner_id: set()},
+        "turn": owner_id,
+        "status": "waiting",
+        "winner": None,
+    }
+
+
+def _bship_ensure_game_shape(game):
+    if not isinstance(game, dict):
+        return False
+    if not isinstance(game.get("ships"), dict):
+        game["ships"] = {}
+    if not isinstance(game.get("shots"), dict):
+        game["shots"] = {}
+    game["size"] = max(3, min(8, int(game.get("size", 5) or 5)))
+    game["ships_count"] = max(1, min(int(game.get("ships_count", 5) or 5), game["size"] * game["size"]))
+    game["status"] = game.get("status") if game.get("status") in ("waiting", "playing", "ended") else "waiting"
+
+    p1 = game.get("p1")
+    p2 = game.get("p2")
+    if p1 is None:
+        return False
+
+    if not game.get("p1_name"):
+        game["p1_name"] = str(p1)
+    if p2 is not None and not game.get("p2_name"):
+        game["p2_name"] = str(p2)
+
+    game["ships"][p1] = _bship_norm_cells(game["ships"].get(p1))
+    game["shots"][p1] = _bship_norm_cells(game["shots"].get(p1))
+    if not game["ships"][p1]:
+        game["ships"][p1] = _bship_random_ships(game["size"], game["ships_count"])
+
+    if p2 is not None:
+        game["ships"][p2] = _bship_norm_cells(game["ships"].get(p2))
+        game["shots"][p2] = _bship_norm_cells(game["shots"].get(p2))
+        if not game["ships"][p2]:
+            game["ships"][p2] = _bship_random_ships(game["size"], game["ships_count"])
+
+    if game.get("turn") not in (p1, p2):
+        game["turn"] = p1
+
+    if game["status"] == "playing" and p2 is None:
+        game["status"] = "waiting"
+
+    if game["status"] == "waiting":
+        game["winner"] = None
+    return True
+
+
+def _bship_cell_view(is_own, has_ship, was_shot_by_self, was_shot_by_enemy):
+    if is_own:
+        if has_ship and was_shot_by_enemy:
+            return "💥"
+        if has_ship:
+            return "🚢"
+        if was_shot_by_enemy:
+            return "•"
+        return "▫️"
+    if was_shot_by_self:
+        return "💥" if has_ship else "•"
+    return "❔"
+
+
+def _bship_public_text(game):
+    _bship_ensure_game_shape(game)
+    size = game.get("size", 5)
+    ships_count = game.get("ships_count", 5)
+    p1 = game.get("p1")
+    p2 = game.get("p2")
+    p1_name = game.get("p1_name", "Игрок 1")
+    p2_name = game.get("p2_name", "Игрок 2") if p2 else "Ожидание второго игрока"
+    text = f"🚢 Морской бой ({size}x{size})\nКораблей: {ships_count} у каждого\n\n{p1_name} vs {p2_name}\n"
+    if game.get("status") == "waiting":
+        text += "\nНажмите «Присоединиться», чтобы начать."
+    elif game.get("status") == "ended":
+        winner = game.get("winner")
+        winner_name = p1_name if winner == p1 else game.get("p2_name", "Игрок 2")
+        text += f"\nПобедитель: {winner_name}"
+    else:
+        turn_uid = game.get("turn")
+        turn_name = p1_name if turn_uid == p1 else game.get("p2_name", "Игрок 2")
+        text += f"\nХод: {turn_name}"
+    text += "\n\nПоля скрыты. Играйте через личные сообщения с ботом."
+    return text
+
+
+def _bship_public_keyboard(gid, game):
+    _bship_ensure_game_shape(game)
+    kb = types.InlineKeyboardMarkup()
+    if game.get("status") == "waiting":
+        kb.add(types.InlineKeyboardButton("Присоединиться", callback_data=f"bship_join_{gid}"))
+    kb.add(types.InlineKeyboardButton("Открыть ЛС", callback_data=f"bship_dm_{gid}"))
+    if game.get("status") == "ended":
+        kb.add(types.InlineKeyboardButton("Новая партия", callback_data=f"bship_new_{gid}"))
+    return kb
+
+
+def _bship_render_text(game, viewer_id):
+    _bship_ensure_game_shape(game)
+    size = game.get("size", 5)
+    ships_count = game.get("ships_count", 5)
+    p1 = game.get("p1")
+    p2 = game.get("p2")
+    p1_name = game.get("p1_name", "Игрок 1")
+    p2_name = game.get("p2_name", "Игрок 2")
+
+    text = f"🚢 Морской бой ({size}x{size})\nКораблей: {ships_count} у каждого\n\n"
+    text += f"{p1_name} vs {p2_name if p2 else 'Ожидание второго игрока'}\n"
+
+    if game.get("status") == "waiting":
+        text += "\nНажмите «Присоединиться», чтобы начать."
+        return text
+
+    if game.get("status") == "ended":
+        winner = game.get("winner")
+        winner_name = p1_name if winner == p1 else p2_name
+        text += f"\nПобедитель: {winner_name}\n"
+    else:
+        turn_uid = game.get("turn")
+        turn_name = p1_name if turn_uid == p1 else p2_name
+        text += f"\nХод: {turn_name}\n"
+
+    if viewer_id not in (p1, p2):
+        text += "\n(Вы не участник этой партии)"
+        return text
+
+    enemy = p2 if viewer_id == p1 else p1
+    ships = game["ships"]
+    shots_map = game["shots"]
+    my_ships = ships.get(viewer_id, set())
+    enemy_ships = ships.get(enemy, set())
+    my_shots = shots_map.get(viewer_id, set())
+    enemy_shots = shots_map.get(enemy, set())
+
+    text += "\nЛегенда: 🚢 корабль, 💥 попадание, • мимо, ▫️ пусто, ❔ неизвестно\n"
+
+    text += "\nВаше поле\n"
+    for r in range(size):
+        row = []
+        for c in range(size):
+            has_ship = (r, c) in my_ships
+            row.append(_bship_cell_view(True, has_ship, False, (r, c) in enemy_shots))
+        text += "".join(row) + "\n"
+
+    text += "\nПоле соперника\n"
+    for r in range(size):
+        row = []
+        for c in range(size):
+            has_ship = (r, c) in enemy_ships
+            row.append(_bship_cell_view(False, has_ship, (r, c) in my_shots, False))
+        text += "".join(row) + "\n"
+
+    return text
+
+
+def _bship_keyboard(gid, game, viewer_id):
+    _bship_ensure_game_shape(game)
+    kb = types.InlineKeyboardMarkup()
+    status = game.get("status")
+
+    if status == "waiting":
+        kb.add(types.InlineKeyboardButton("Присоединиться", callback_data=f"bship_join_{gid}"))
+        return kb
+
+    if status == "ended":
+        kb.add(types.InlineKeyboardButton("Новая партия", callback_data=f"bship_new_{gid}"))
+        return kb
+
+    p1 = game.get("p1")
+    p2 = game.get("p2")
+    if viewer_id not in (p1, p2):
+        return kb
+
+    if viewer_id != game.get("turn"):
+        kb.add(types.InlineKeyboardButton("Ход соперника", callback_data="none"))
+        return kb
+
+    size = game.get("size", 5)
+    shots = game.get("shots", {}).get(viewer_id, set())
+    for r in range(size):
+        row = []
+        for c in range(size):
+            if (r, c) in shots:
+                row.append(types.InlineKeyboardButton("•", callback_data="none"))
+            else:
+                row.append(types.InlineKeyboardButton("▫️", callback_data=f"bship_shot_{gid}_{r}_{c}"))
+        kb.row(*row)
+    return kb
+
+
+def _bship_store_public_anchor(game, call):
+    if getattr(call, "inline_message_id", None):
+        game["public_inline_id"] = call.inline_message_id
+    elif getattr(call, "message", None) and getattr(call.message.chat, "type", None) != "private":
+        game["public_chat_id"] = call.message.chat.id
+        game["public_message_id"] = call.message.message_id
+
+
+def _bship_edit_public_view(gid, game, call=None):
+    text = _bship_public_text(game)
+    kb = _bship_public_keyboard(gid, game)
+    try:
+        inline_id = game.get("public_inline_id")
+        if inline_id:
+            bot.edit_message_text(text, inline_message_id=inline_id, reply_markup=kb)
+            return
+        chat_id = game.get("public_chat_id")
+        message_id = game.get("public_message_id")
+        if chat_id and message_id:
+            bot.edit_message_text(text, chat_id=chat_id, message_id=message_id, reply_markup=kb)
+            return
+        if call is not None and (getattr(call, "inline_message_id", None) or (getattr(call, "message", None) and getattr(call.message.chat, "type", None) != "private")):
+            safe_edit_message(call, text, reply_markup=kb)
+    except Exception as e:
+        msg = str(e)
+        if "message is not modified" not in msg and "exactly the same" not in msg:
+            print("BATTLESHIP PUBLIC VIEW ERROR:", e)
+
+
+def _bship_send_or_edit_private(gid, game, uid):
+    if uid not in (game.get("p1"), game.get("p2")):
+        return False
+    text = _bship_render_text(game, uid)
+    kb = _bship_keyboard(gid, game, uid)
+    pm = game.setdefault("pm", {})
+    cur = pm.get(uid) if isinstance(pm, dict) else None
+    try:
+        if isinstance(cur, dict) and cur.get("chat_id") and cur.get("message_id"):
+            bot.edit_message_text(
+                text,
+                chat_id=cur["chat_id"],
+                message_id=cur["message_id"],
+                reply_markup=kb,
+            )
+            return True
+    except Exception as e:
+        print("BATTLESHIP PRIVATE EDIT ERROR:", e)
+    try:
+        msg = bot.send_message(uid, text, reply_markup=kb)
+        pm[uid] = {"chat_id": msg.chat.id, "message_id": msg.message_id}
+        return True
+    except Exception as e:
+        print("BATTLESHIP PRIVATE SEND ERROR:", e)
+        return False
+
+
+def _bship_sync_views(gid, game, call=None):
+    _bship_edit_public_view(gid, game, call=call)
+    p1 = game.get("p1")
+    p2 = game.get("p2")
+    ok_p1 = _bship_send_or_edit_private(gid, game, p1) if p1 is not None else False
+    ok_p2 = _bship_send_or_edit_private(gid, game, p2) if p2 is not None else False
+    return ok_p1, ok_p2
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "none")
+def noop_callback(call):
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("bship_"))
+def battleship_callback(call):
+    def _safe_ack(text=None, show_alert=False):
+        try:
+            bot.answer_callback_query(call.id, text, show_alert=show_alert)
+        except Exception as e:
+            msg = str(e)
+            if "query is too old" in msg or "query ID is invalid" in msg:
+                return
+            print("BATTLESHIP ACK ERROR:", e)
+
+    try:
+        parts = call.data.split("_")
+        if len(parts) < 3:
+            _safe_ack("Неверные данные")
+            return
+
+        action = parts[1]
+        gid = parts[2]
+        game = battleship_games.get(gid)
+        if not game:
+            _safe_ack("Игра не найдена")
+            return
+        if not _bship_ensure_game_shape(game):
+            _safe_ack("Игра повреждена")
+            return
+        _bship_store_public_anchor(game, call)
+
+        uid = call.from_user.id
+
+        if action == "dm":
+            if uid not in (game.get("p1"), game.get("p2")):
+                _safe_ack("Вы не участник этой партии", show_alert=True)
+                return
+            if _bship_send_or_edit_private(gid, game, uid):
+                _safe_ack("Отправил поле в ЛС")
+            else:
+                _safe_ack("Не могу написать в ЛС. Откройте чат с ботом и нажмите Start", show_alert=True)
+            return
+
+        if action == "join":
+            if game.get("status") != "waiting":
+                _safe_ack("Игра уже началась")
+                return
+            if uid == game.get("p1"):
+                _safe_ack("Нужен второй игрок")
+                return
+
+            game["p2"] = uid
+            game["p2_name"] = call.from_user.first_name or call.from_user.username or str(uid)
+            size = game.get("size", 5)
+            ships_count = game.get("ships_count", 5)
+            game.setdefault("ships", {})[uid] = _bship_random_ships(size, ships_count)
+            game.setdefault("shots", {})[uid] = set()
+            game["status"] = "playing"
+            game["turn"] = game.get("p1")
+
+            ok1, ok2 = _bship_sync_views(gid, game, call=call)
+            if not ok1 or not ok2:
+                _safe_ack("Партия началась. Если нет поля в ЛС — откройте чат с ботом и нажмите Start", show_alert=True)
+            else:
+                _safe_ack("Партия началась. Поля отправлены в ЛС")
+            return
+
+        if action == "new":
+            if uid not in (game.get("p1"), game.get("p2")):
+                _safe_ack("\u042d\u0442\u043e \u043d\u0435 \u0432\u0430\u0448\u0430 \u043f\u0430\u0440\u0442\u0438\u044f")
+                return
+
+            size = game.get("size", 5)
+            ships_count = game.get("ships_count", 5)
+            p1 = game.get("p1")
+            p2 = game.get("p2")
+
+            if not p2:
+                game.update(_bship_new_game(p1, game.get("p1_name", "\u0418\u0433\u0440\u043e\u043a 1"), size=size, ships_count=ships_count))
+                game["turn"] = uid
+                game["shots"] = {p1: set()}
+            else:
+                game["status"] = "playing"
+                game["ships"] = {
+                    p1: _bship_random_ships(size, ships_count),
+                    p2: _bship_random_ships(size, ships_count),
+                }
+                game["shots"] = {p1: set(), p2: set()}
+            game["turn"] = p1
+            game["winner"] = None
+
+            _bship_sync_views(gid, game, call=call)
+            _safe_ack("Новая партия. Обновил поля в ЛС")
+            return
+
+        if action == "shot":
+            if len(parts) < 5:
+                _safe_ack("Неверный ход")
+                return
+            if game.get("status") != "playing":
+                _safe_ack("Партия не начата")
+                return
+            if uid != game.get("turn"):
+                _safe_ack("Сейчас не ваш ход")
+                return
+            if uid not in (game.get("p1"), game.get("p2")):
+                _safe_ack("Вы не участник этой партии")
+                return
+
+            r = int(parts[3])
+            c = int(parts[4])
+            size = game.get("size", 5)
+            if r < 0 or c < 0 or r >= size or c >= size:
+                _safe_ack("Некорректная клетка")
+                return
+
+            enemy = game.get("p2") if uid == game.get("p1") else game.get("p1")
+            if not enemy:
+                _safe_ack("Ожидаем второго игрока")
+                return
+
+            my_shots = game.setdefault("shots", {}).setdefault(uid, set())
+            if (r, c) in my_shots:
+                _safe_ack("Вы уже стреляли сюда")
+                return
+
+            my_shots.add((r, c))
+            enemy_ships = game.setdefault("ships", {}).setdefault(enemy, set())
+
+            if (r, c) in enemy_ships:
+                if enemy_ships.issubset(my_shots):
+                    game["status"] = "ended"
+                    game["winner"] = uid
+                    _bship_sync_views(gid, game, call=call)
+                    _safe_ack("Попадание! Вы победили")
+                    return
+                _safe_ack("Попадание! Ходите еще")
+            else:
+                game["turn"] = enemy
+                _safe_ack("Мимо")
+
+            _bship_sync_views(gid, game, call=call)
+            return
+
+        _safe_ack()
+    except Exception as e:
+        print("BATTLESHIP CALLBACK ERROR:", e)
+        _safe_ack("\u041e\u0448\u0438\u0431\u043a\u0430 \u041c\u043e\u0440\u0441\u043a\u043e\u0433\u043e \u0431\u043e\u044f")
+
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("chess_"))
 def chess_callback(call):
