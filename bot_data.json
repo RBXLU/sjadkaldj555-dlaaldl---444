@@ -136,14 +136,96 @@
       }
     },
     "6695830312": {
-      "streak_current": 2,
-      "streak_last_day": "2026-02-24",
+      "streak_current": 1,
+      "streak_last_day": "2026-02-28",
       "streak_best": 2,
       "display_name": "Вы",
-      "count": 0,
-      "date": "2026-02-24",
+      "count": 1,
+      "date": "2026-02-28",
       "premium_until": 0,
-      "pending": {},
+      "pending": {
+        "357135da02e04ecaa9656f79e357a79a": {
+          "q": "Со",
+          "a": null,
+          "status": "wait"
+        },
+        "08cf701ced1d4e62bcd3e2783b0a76d8": {
+          "q": "Создай",
+          "a": null,
+          "status": "wait"
+        },
+        "707e49b7eb7749aa9e8c7665e9eb5689": {
+          "q": "Создай код на питоне у",
+          "a": null,
+          "status": "wait"
+        },
+        "f6e52b53e6de499581022dbf9785ec60": {
+          "q": "Создай код на питоне",
+          "a": null,
+          "status": "wait"
+        },
+        "692622ff90ca409393df6af27d776ef9": {
+          "q": "Создай код на питоне который",
+          "a": null,
+          "status": "wait"
+        },
+        "9d60389536b740dba37595857aa0f481": {
+          "q": "Создай код на питоне который выз",
+          "a": null,
+          "status": "wait"
+        },
+        "17c20ed9198744a4ac86b8fca838e88a": {
+          "q": "Создай код на питоне который вызовет много и",
+          "a": null,
+          "status": "wait"
+        },
+        "d944a5ad18c24790b582d5a1506449ab": {
+          "q": "Создай код на питоне который вызовет много ошибок",
+          "a": null,
+          "status": "wait"
+        },
+        "ccebbd7c1b524db3bc4a92fdaa0102d0": {
+          "q": "Создай код на питоне который вызовет много ошибок (",
+          "a": null,
+          "status": "wait"
+        },
+        "f6acde128e5f4921a20cb230139ac532": {
+          "q": "Создай код на питоне который вызовет много ошибок (t",
+          "a": null,
+          "status": "wait"
+        },
+        "75fb43346c1d4d17a4c992760ac8f737": {
+          "q": "Создай код на питоне который вызовет много ошибок (tkinter",
+          "a": null,
+          "status": "wait"
+        },
+        "513c35739bb644d980c15bebbd93c507": {
+          "q": "Создай код на питоне который вызовет много ошибок (tkinter m",
+          "a": null,
+          "status": "wait"
+        },
+        "3acdf448ec4d4468ac2dc9c45e79f2cf": {
+          "q": "Создай код на питоне который вызовет много ошибок (tkinter mes",
+          "a": null,
+          "status": "wait"
+        },
+        "cdc8b49b9ce14b2ba9bfd85ffe0a14c1": {
+          "q": "Создай код на питоне который вызовет много ошибок (tkinter messa",
+          "a": null,
+          "status": "wait"
+        },
+        "98b55e641e834215815e649fd4780eca": {
+          "q": "Создай код на питоне который вызовет много ошибок (tkinter messagebox",
+          "a": null,
+          "status": "wait"
+        },
+        "30c30bef31764f189a08de65d5260d62": {
+          "q": "Создай код на питоне который вызовет много ошибок (tkinter messagebox)",
+          "a": "❌ Временная ошибка AI-сервиса. Нажмите «Обновить» или «Получить ответ» ещё раз.",
+          "status": "done",
+          "started_at": 1772259608
+        }
+      },
       "started": true,
       "telos": {
         "booted": true,
@@ -174,7 +256,9 @@
           "guess_target": null
         },
         "created_at": 1771958690
-      }
+      },
+      "daily_date": "2026-02-28",
+      "daily_count": 1
     },
     "6630327084": {
       "streak_current": 1,
