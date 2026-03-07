@@ -16,12 +16,16 @@ from groq import Groq
 from bussines_bot import register_business_handlers
 
 # ---------- BOT SETUP ----------
-TOKEN = "8317148699:AAFZn4dZzKlBpivEKUYDbPcR4wL8iDgMMc8"
+TOKEN = "8317148699:AAET2FOHnMzozQ9OiaRglOBewXCq4ziDd_U"
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook()
+try:
+    INLINE_BOT_USERNAME = bot.get_me().username or "minigamesisbot"
+except Exception:
+    INLINE_BOT_USERNAME = "minigamesisbot"
 
 # ---------- CONFIGURATION ----------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 FREE_DAILY_QUOTA = 10
@@ -30,6 +34,12 @@ PREMIUM_DAYS = 30
 DATA_FILE = "ai_users.json"
 # Название канала для обязательной подписки (если нужно)
 REQUIRED_CHANNEL = "@minigamesbottgk"  # или None
+SUPPORT_ADMIN_IDS_RAW = os.getenv("SUPPORT_ADMIN_IDS", "5782683757")
+SUPPORT_ADMIN_IDS = {
+    int(x.strip())
+    for x in str(SUPPORT_ADMIN_IDS_RAW).split(",")
+    if x.strip().isdigit()
+}
 
 # ---------- AI MODES ----------
 AI_MODES = {
@@ -130,6 +140,206 @@ def get_user(uid):
 
     save_data(data)
     return user
+
+GAME_TITLES = {
+    "rps": "Камень-ножницы-бумага",
+    "ttt": "Крестики-нолики",
+    "millionaire": "Миллионер",
+    "coin": "Орел или решка",
+    "wordle": "Wordle",
+    "bship": "Морской бой",
+    "chess": "Шахматы",
+    "guess": "Угадай число",
+    "slot": "Казино",
+    "snake": "Змейка",
+    "tetris": "Тетрис",
+    "flappy": "Flappy Bird",
+    "g2048": "2048",
+    "pong": "Пинг-понг",
+    "hangman": "Виселица",
+    "minesweeper": "Сапер",
+    "quizgame": "Викторина",
+    "combogame": "Комбо-битва",
+    "mafia": "Мафия",
+    "wordgame": "Словесная дуэль",
+}
+
+def _record_game_play(user_id, game_key, display_name=None, session_id=None):
+    if not game_key:
+        return
+    d = load_data()
+    users = d.setdefault("users", {})
+    rec = users.setdefault(str(user_id), {})
+    if display_name:
+        rec["display_name"] = str(display_name)[:64]
+
+    gstats = rec.setdefault("game_stats", {})
+    if not isinstance(gstats, dict):
+        gstats = {}
+        rec["game_stats"] = gstats
+    row = gstats.setdefault(game_key, {"played": 0, "wins": 0, "losses": 0, "draws": 0})
+    row["played"] = int(row.get("played", 0) or 0) + 1
+
+    rec["games_total"] = int(rec.get("games_total", 0) or 0) + 1
+    history = rec.setdefault("match_history", [])
+    if not isinstance(history, list):
+        history = []
+    history.append({
+        "game": game_key,
+        "at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "session": str(session_id or ""),
+    })
+    rec["match_history"] = history[-50:]
+
+    global_stats = d.setdefault("global_game_stats", {})
+    global_stats[game_key] = int(global_stats.get(game_key, 0) or 0) + 1
+    save_data(d)
+
+def _record_game_play_once(user_id, game_key, session_id, display_name=None):
+    if not game_key:
+        return
+    sid = str(session_id or "").strip()
+    if not sid:
+        _record_game_play(user_id, game_key, display_name=display_name, session_id=session_id)
+        return
+    d = load_data()
+    users = d.setdefault("users", {})
+    rec = users.setdefault(str(user_id), {})
+    seen = rec.setdefault("tracked_sessions", [])
+    if not isinstance(seen, list):
+        seen = []
+    uniq = f"{game_key}:{sid}"
+    if uniq in seen:
+        return
+    seen.append(uniq)
+    rec["tracked_sessions"] = seen[-1000:]
+    users[str(user_id)] = rec
+    save_data(d)
+    _record_game_play(user_id, game_key, display_name=display_name, session_id=session_id)
+
+def _game_from_inline_result_id(result_id):
+    rid = str(result_id or "").strip().lower()
+    if not rid:
+        return None
+    prefixes = [
+        "rps_", "ttt_", "millionaire_", "coin_", "wordle_", "bship_", "chess_",
+        "guess_", "slot_", "snake_", "tetris_", "flappy_", "g2048_", "pong_",
+        "hangman_", "minesweeper_", "quizgame_", "combogame_", "mafia_", "wordgame_",
+    ]
+    for p in prefixes:
+        if rid.startswith(p):
+            return p[:-1]
+    return None
+
+def _track_callback_game_play(call):
+    try:
+        data = str(call.data or "")
+        uid = call.from_user.id
+        name = call.from_user.first_name or call.from_user.username or str(uid)
+        parts = data.split("_")
+        game_key = None
+        sid = None
+
+        if data.startswith("rps_move_") and len(parts) >= 3:
+            game_key, sid = "rps", parts[2]
+        elif data.startswith("rps_join_") and len(parts) >= 3:
+            game_key, sid = "rps", parts[2]
+        elif data.startswith("rps_") and len(parts) >= 2:
+            game_key, sid = "rps", parts[1]
+        elif data.startswith("ttt_move_") and len(parts) >= 3:
+            game_key, sid = "ttt", parts[2]
+        elif data.startswith("ttt_restart_") and len(parts) >= 3:
+            game_key, sid = "ttt", parts[2]
+        elif data.startswith("ttt_join_") and len(parts) >= 3:
+            game_key, sid = "ttt", parts[2]
+        elif data.startswith("millionaire_") and len(parts) >= 3:
+            game_key, sid = "millionaire", parts[1]
+        elif data.startswith("wrdl_") and len(parts) >= 3:
+            game_key, sid = "wordle", parts[2]
+        elif data.startswith("bship_") and len(parts) >= 3:
+            game_key, sid = "bship", parts[2]
+        elif data.startswith("chess_") and len(parts) >= 3:
+            game_key, sid = "chess", parts[2]
+        elif data.startswith("g2048_"):
+            game_key = "g2048"
+            sid = parts[1] if len(parts) >= 3 and parts[1] != "new" else None
+        elif data.startswith("tetris_"):
+            game_key = "tetris"
+            sid = parts[1] if len(parts) >= 3 and parts[1] != "new" else None
+        elif data.startswith("pong_") and len(parts) >= 3:
+            game_key, sid = "pong", parts[1]
+        elif data.startswith("hangman_"):
+            game_key = "hangman"
+            sid = parts[1] if len(parts) >= 3 and parts[1] != "new" else None
+        elif data.startswith("minesweeper_") and len(parts) >= 3:
+            game_key, sid = "minesweeper", parts[1]
+        elif data.startswith("quizgame_") and len(parts) >= 3:
+            game_key, sid = "quizgame", parts[2]
+        elif data.startswith("quiz_") and len(parts) >= 3:
+            game_key, sid = "quizgame", parts[1]
+        elif data.startswith("combogame_") and len(parts) >= 3:
+            game_key, sid = "combogame", parts[2]
+        elif data.startswith("combo_") and len(parts) >= 3:
+            game_key, sid = "combogame", parts[1]
+        elif data.startswith("mafia_") and len(parts) >= 3:
+            game_key, sid = "mafia", parts[2]
+        elif data.startswith("wordgame_join_") and len(parts) >= 3:
+            game_key, sid = "wordgame", parts[2]
+        elif data.startswith("emojigame_join_") and len(parts) >= 3:
+            game_key, sid = "wordgame", parts[2]
+        elif data.startswith("flappy_"):
+            game_key = "flappy"
+        elif data.startswith("guess_inline_"):
+            game_key = "guess"
+        elif data == "coin_flip":
+            game_key = "coin"
+        elif data == "slot_spin":
+            game_key = "slot"
+        elif data.startswith("snake_"):
+            game_key = "snake"
+
+        if not game_key:
+            return
+        if not sid:
+            sid = call.inline_message_id or (
+                f"{call.message.chat.id}:{call.message.message_id}" if call.message else ""
+            )
+        _record_game_play_once(uid, game_key, sid, display_name=name)
+    except Exception as e:
+        print("CALLBACK TRACK ERROR:", e)
+
+def _render_profile_text(uid):
+    d = load_data()
+    user = d.get("users", {}).get(str(uid), {}) or {}
+    total = int(user.get("games_total", 0) or 0)
+    gstats = user.get("game_stats", {}) if isinstance(user.get("game_stats", {}), dict) else {}
+    history = user.get("match_history", []) if isinstance(user.get("match_history", []), list) else []
+
+    lines = [f"👤 Профиль", f"Всего сыграно: {total}"]
+    if gstats:
+        lines.append("")
+        lines.append("📊 Статистика по играм:")
+        rows = sorted(gstats.items(), key=lambda kv: int((kv[1] or {}).get("played", 0) or 0), reverse=True)
+        for gk, row in rows:
+            played = int((row or {}).get("played", 0) or 0)
+            if played <= 0:
+                continue
+            title = GAME_TITLES.get(gk, gk)
+            lines.append(f"• {title}: {played}")
+    else:
+        lines.append("")
+        lines.append("📊 Статистика по играм: пока пусто")
+
+    if history:
+        lines.append("")
+        lines.append("🕓 Последние матчи:")
+        for item in history[-10:][::-1]:
+            gk = str(item.get("game", ""))
+            title = GAME_TITLES.get(gk, gk or "Игра")
+            at = str(item.get("at", ""))
+            lines.append(f"• {title} — {at}")
+
+    return "\n".join(lines)
 
 def has_premium(uid):
     user = get_user(uid)
@@ -418,6 +628,7 @@ inline_slot_games = {}
 user_sys_settings = {}      # uid -> {msg, btn, title, gui}
 system_notify_wait = {}     # uid -> "field"
 telos_input_wait = {}       # uid -> {"action": "..."}
+support_chat_wait = {}      # uid -> "moderator" | "issue"
 millionaire_games = {}   # short_id -> {"question":..., "attempts":int}
 user_show_easter_egg = {}  # uid -> bool (для управления отображением пасхалки)
 games_flappy = {}   # gid -> {"bird_y":int,"pipes":[(x,gap)],"score":int}
@@ -894,6 +1105,7 @@ def main_menu_keyboard():
     kb.add("🎭 Мафия", "🧱 Тетрис")
     kb.add("🟢 Wordle")
     kb.add("🚀 Поддержать автора")
+    kb.add("🛠 Поддержка")
     return kb
 
 def snake_controls():
@@ -1397,6 +1609,95 @@ def topusers_cmd(message):
 
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
+@bot.chosen_inline_handler(func=lambda r: True)
+def chosen_inline_track(result):
+    return
+
+@bot.message_handler(commands=["profile"])
+def profile_cmd(message):
+    uid = message.from_user.id
+    update_user_streak(uid, message.from_user.first_name or message.from_user.username or str(uid))
+    bot.send_message(message.chat.id, _render_profile_text(uid))
+
+def _admin_panel_kb():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("👥 Все игроки", callback_data="admin_users"))
+    kb.add(types.InlineKeyboardButton("📈 Популярные игры", callback_data="admin_games"))
+    kb.add(types.InlineKeyboardButton("📣 Рассылка", callback_data="admin_broadcast"))
+    return kb
+
+def _broadcast_menu_kb():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("1. Изменить текст сообщения", callback_data="messagenot_msg"))
+    kb.add(types.InlineKeyboardButton("2. Изменить текст кнопки", callback_data="messagenot_btn"))
+    kb.add(types.InlineKeyboardButton("3. Изменить тип кнопки", callback_data="messagenot_type"))
+    kb.add(types.InlineKeyboardButton("4. Отправить всем", callback_data="messagenot_send"))
+    return kb
+
+def _send_broadcast_menu(chat_id):
+    bot.send_message(chat_id, "⚙️ Настройки рассылки — выберите действие:", reply_markup=_broadcast_menu_kb())
+
+@bot.message_handler(commands=["adminpanel"])
+def admin_panel_cmd(message):
+    uid = message.from_user.id
+    if uid not in SUPPORT_ADMIN_IDS:
+        bot.send_message(message.chat.id, "⛔ Доступ запрещен.")
+        return
+    bot.send_message(message.chat.id, "🛠 Админ-панель", reply_markup=_admin_panel_kb())
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("admin_"))
+def admin_panel_callbacks(call):
+    uid = call.from_user.id
+    if uid not in SUPPORT_ADMIN_IDS:
+        try:
+            bot.answer_callback_query(call.id, "Нет доступа", show_alert=True)
+        except Exception:
+            pass
+        return
+
+    data = call.data
+    if data == "admin_users":
+        d = load_data()
+        users = d.get("users", {})
+        rows = []
+        for uid_str, rec in users.items():
+            if not isinstance(rec, dict):
+                continue
+            total = int(rec.get("games_total", 0) or 0)
+            name = rec.get("display_name") or f"user_{uid_str}"
+            rows.append((total, str(name), uid_str))
+        rows.sort(key=lambda x: (-x[0], x[1].lower()))
+        text = f"👥 Всего пользователей: {len(users)}\n\n"
+        if rows:
+            text += "Топ по сыгранным играм:\n"
+            for i, (total, name, uid_str) in enumerate(rows[:20], 1):
+                text += f"{i}. {name} (ID {uid_str}) — {total}\n"
+        else:
+            text += "Нет данных."
+        safe_edit_message(call, text, reply_markup=_admin_panel_kb())
+        return
+
+    if data == "admin_games":
+        d = load_data()
+        global_stats = d.get("global_game_stats", {})
+        rows = sorted(global_stats.items(), key=lambda kv: int(kv[1] or 0), reverse=True)
+        text = "📈 Популярные игры:\n\n"
+        if rows:
+            for i, (gk, cnt) in enumerate(rows[:20], 1):
+                text += f"{i}. {GAME_TITLES.get(gk, gk)} — {int(cnt or 0)}\n"
+        else:
+            text += "Пока нет статистики."
+        safe_edit_message(call, text, reply_markup=_admin_panel_kb())
+        return
+
+    if data == "admin_broadcast":
+        try:
+            bot.answer_callback_query(call.id)
+        except Exception:
+            pass
+        _send_broadcast_menu(call.message.chat.id if call.message else uid)
+        return
+
 @bot.message_handler(commands=["settext"])
 def settext_cmd(message):
     uid = message.from_user.id
@@ -1434,15 +1735,10 @@ def messagenot_cmd(message):
         bot.send_message(message.chat.id, "⚠️ Для использования этой функции подпишитесь на канал.", reply_markup=kb)
         return
 
-    kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("1. Изменить текст сообщения", callback_data="messagenot_msg"))
-    kb.add(types.InlineKeyboardButton("2. Изменить текст кнопки", callback_data="messagenot_btn"))
-    kb.add(types.InlineKeyboardButton("3. Изменить тип кнопки", callback_data="messagenot_type"))
-    kb.add(types.InlineKeyboardButton("4. Отправить всем", callback_data="messagenot_send"))
-    bot.send_message(message.chat.id, "⚙️ Настройки рассылки — выберите действие:", reply_markup=kb)
+    _send_broadcast_menu(message.chat.id)
 
 
-@bot.callback_query_handler(func=lambda c: c.data in ("messagenot_msg","messagenot_btn","messagenot_type","messagenot_send"))
+@bot.callback_query_handler(func=lambda c: c.data.startswith(("messagenot_msg","messagenot_btn","messagenot_type","messagenot_send")))
 def messagenot_callback(call):
     try:
         uid = call.from_user.id
@@ -1504,7 +1800,7 @@ def messagenot_callback(call):
         bot.answer_callback_query(call.id, "Ошибка в редакторе сообщений")
 
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith(("messagenot_type_link", "messagenot_type_none")))
+@bot.callback_query_handler(func=lambda c: c.data.startswith("messagenot_type_link"))
 def messagenot_type_choice(call):
     try:
         uid = call.from_user.id
@@ -1616,7 +1912,7 @@ def chess_menu(message):
 
 @bot.message_handler(func=lambda m: m.text == "💬 Режим ИИ")
 def ai_mode(message):
-    bot.send_message(message.chat.id, "Чтобы использовать режим ИИ — напишите <code>@minigamesisbot</code> в любом чате!", parse_mode="HTML")
+    bot.send_message(message.chat.id, f"Чтобы использовать режим ИИ — напишите <code>@{INLINE_BOT_USERNAME}</code> в любом чате!", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "🐣 Пасхалка")
 def pashalka(message):
@@ -1644,7 +1940,7 @@ def ugadayka(message):
 
 @bot.message_handler(func=lambda m: m.text == "✂ Камень-ножницы-бумага")
 def rsp(message):
-    bot.send_message(message.chat.id, "Чтобы играть в камень ножницы бумага - напишите <code>@minigamesisbot</code> в любом чате!", parse_mode="HTML")
+    bot.send_message(message.chat.id, f"Чтобы играть в камень ножницы бумага - напишите <code>@{INLINE_BOT_USERNAME}</code> в любом чате!", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "🐍 Змейка")
 def snake(message):
@@ -1681,16 +1977,101 @@ def connect(message):
         "• казино\n"
         "• орёл или решка\n\n"
         "<b>Как подключить:</b>\n"
-        "1. Скопируйте имя <code>@minigamesisbot</code>\n"
+        f"1. Скопируйте имя <code>@{INLINE_BOT_USERNAME}</code>\n"
         "2. Откройте: Настройки → Telegram для бизнеса → Чат-боты\n"
         "3. Добавьте бота и примените настройки\n\n"
         "После подключения просто отправьте в бизнес-чат название игры.",
         parse_mode="HTML",
     )
 
+def _support_text():
+    return "🛠 Выберите действие:"
+
+def _is_support_admin(uid):
+    return uid in SUPPORT_ADMIN_IDS
+
+def _support_menu_kb():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("💬 Написать модератору", callback_data="support_mode_moderator"))
+    kb.add(types.InlineKeyboardButton("🐞 Отправить проблему", callback_data="support_mode_issue"))
+    return kb
+
+def _support_mode_prompt(mode):
+    if mode == "moderator":
+        return (
+            "💬 Режим: написать модератору.\n"
+            "Отправьте сообщение одним текстом.\n"
+            "Для отмены: /cancelsupport"
+        )
+    return (
+        "🐞 Режим: отправить проблему.\n"
+        "Пришлите описание, скриншот или видео (можно с подписью).\n"
+        "Для отмены: /cancelsupport"
+    )
+
+@bot.message_handler(commands=["support"])
+def support_command(message):
+    bot.send_message(message.chat.id, _support_text(), reply_markup=_support_menu_kb())
+
+@bot.message_handler(func=lambda m: m.text == "🛠 Поддержка")
+def support_menu(message):
+    bot.send_message(message.chat.id, _support_text(), reply_markup=_support_menu_kb())
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("support_mode_"))
+def support_mode_callback(call):
+    mode = call.data.split("_", 2)[2] if "_" in call.data else ""
+    if mode not in ("moderator", "issue"):
+        try:
+            bot.answer_callback_query(call.id, "Неизвестный режим")
+        except Exception:
+            pass
+        return
+    if not SUPPORT_ADMIN_IDS:
+        try:
+            bot.answer_callback_query(call.id, "Поддержка через модераторов недоступна", show_alert=True)
+        except Exception:
+            pass
+        return
+    uid = call.from_user.id
+    support_chat_wait[uid] = mode
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
+    bot.send_message(uid, _support_mode_prompt(mode))
+
+@bot.message_handler(commands=["cancelsupport"])
+def cancel_support_chat(message):
+    support_chat_wait.pop(message.from_user.id, None)
+    bot.send_message(message.chat.id, "❌ Режим поддержки отменён.")
+
+@bot.message_handler(commands=["reply"])
+def support_admin_reply(message):
+    uid = message.from_user.id
+    if not _is_support_admin(uid):
+        return
+    text = (message.text or "").strip()
+    parts = text.split(maxsplit=2)
+    if len(parts) < 3 or not parts[1].isdigit():
+        bot.send_message(
+            message.chat.id,
+            "Формат: /reply <user_id> <текст>\nПример: /reply 123456789 Здравствуйте, проверяем проблему."
+        )
+        return
+    target_uid = int(parts[1])
+    reply_text = parts[2].strip()
+    if not reply_text:
+        bot.send_message(message.chat.id, "Текст ответа пуст.")
+        return
+    try:
+        bot.send_message(target_uid, f"💬 Ответ поддержки:\n{reply_text}")
+        bot.send_message(message.chat.id, f"✅ Ответ отправлен пользователю {target_uid}.")
+    except Exception:
+        bot.send_message(message.chat.id, "❌ Не удалось отправить ответ пользователю.")
+
 @bot.message_handler(func=lambda m: m.text == "🚀 Поддержать автора")
-def support(message):
-        bot.send_message(message.chat.id, "Если вам нравится этот бот, вы можете поддержать автора отправив тон на адрес:\n\n💳 <code>UQDla14mdjvSsjI1KMJ8cktcbn-smuKXwmFJXPdRT95-k4qQ</code>\n\nЗаранее cпасибо вашу поддержку!", parse_mode="HTML")
+def support_donate(message):
+    bot.send_message(message.chat.id, "Если вам нравится этот бот, вы можете поддержать автора отправив тон на адрес:\n\n💳 <code>UQDla14mdjvSsjI1KMJ8cktcbn-smuKXwmFJXPdRT95-k4qQ</code>\n\nЗаранее cпасибо вашу поддержку!", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "🕵️‍♀️ Прятки")
 def hide_and_seek(message):
@@ -1702,6 +2083,8 @@ def hangman_message(message):
 
 @bot.message_handler(func=lambda m: m.text == "💣 Сапёр")
 def minesweeper_message(message):
+    uid = message.from_user.id
+    _record_game_play(uid, "minesweeper", display_name=message.from_user.first_name or message.from_user.username or str(uid), session_id=f"chat_{message.chat.id}_{int(time.time())}")
     start_minesweeper_in_chat(message.chat.id)
 
 @bot.message_handler(func=lambda m: m.text == "🔤 Викторина")
@@ -1733,7 +2116,7 @@ def _ai_prompt_message(question, status, answer=None):
     )
     if status == "done":
         text += "\n\n🤖 Ответ:\n" + str(answer or "")
-    return text[:3900]
+    return text
 
 
 def _ai_prompt_kb(uid, rid):
@@ -1830,6 +2213,24 @@ def inline_handler(query):
         results = []
 
         # ---------- RPS (Камень Ножницы Бумага) ----------
+        rgid = short_id()
+        rps_games[rgid] = {"uid": starter_id}
+        rps_markup = types.InlineKeyboardMarkup()
+        rps_markup.row(
+            types.InlineKeyboardButton("🪨 Камень", callback_data=f"rps_{rgid}_rock"),
+            types.InlineKeyboardButton("📄 Бумага", callback_data=f"rps_{rgid}_paper"),
+            types.InlineKeyboardButton("✂️ Ножницы", callback_data=f"rps_{rgid}_scissors")
+        )
+        results.append(types.InlineQueryResultArticle(
+            id=f"rps_{rgid}",
+            title="✂ Камень-ножницы-бумага",
+            description="Сыграйте против бота",
+            input_message_content=types.InputTextMessageContent(
+                "✂️ *Камень • Ножницы • Бумага*\nВыберите ход:",
+                parse_mode="Markdown"
+            ),
+            reply_markup=rps_markup
+        ))
 
 
         # TTT
@@ -2213,6 +2614,7 @@ def render_flappy_state(state):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("flappy_"))
 def flappy_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_", 2)  # flappy_new OR flappy_<gid>_jump
         if parts[1] == "new":
@@ -2283,6 +2685,7 @@ def flappy_callback(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("guess_inline_"))
 def guess_inline_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_")
         # callback format: guess_inline_<number>
@@ -2343,6 +2746,7 @@ def guess_inline_callback(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("snake_"))
 def snake_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_")
         if len(parts) < 2:
@@ -2518,6 +2922,7 @@ def hide_secret(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rps_mode_"))
 def rps_choose_mode(call):
+    _track_callback_game_play(call)
     _, _, mode, gid = call.data.split("_")
 
     game = rps_games.get(gid)
@@ -2543,6 +2948,7 @@ def rps_choose_mode(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rps_join_"))
 def rps_join(call):
+    _track_callback_game_play(call)
     gid = call.data.split("_")[2]
     game = rps_games.get(gid)
 
@@ -2701,6 +3107,7 @@ def ai_callback(call):
 # ------------------- TTT HANDLER -------------------
 @bot.callback_query_handler(func=lambda c: c.data.startswith("ttt_join_"))
 def ttt_join(call):
+    _track_callback_game_play(call)
     try:
         # data format: ttt_join_{host_id}
         parts = call.data.split("_")
@@ -2743,6 +3150,7 @@ def ttt_join(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rps_move_"))
 def rps_move(call):
+    _track_callback_game_play(call)
     _, _, gid, move = call.data.split("_")
     uid = call.from_user.id
 
@@ -2786,6 +3194,7 @@ def rps_move(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("ttt_move_"))
 def ttt_move(call):
+    _track_callback_game_play(call)
     try:
         # data: ttt_move_{gid}_{cell}
         parts = call.data.split("_")
@@ -2875,6 +3284,7 @@ def ttt_move(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("ttt_restart_"))
 def ttt_restart(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_")
         if len(parts) < 3:
@@ -3224,12 +3634,16 @@ def inline_tetris(query):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rps_"))
 def rps_callback(call):
+    _track_callback_game_play(call)
     try:
         _, gid, user_choice = call.data.split("_")
 
         game = rps_games.get(gid)
         if not game:
             bot.answer_callback_query(call.id, "❌ Игра устарела")
+            return
+        if game.get("uid") != call.from_user.id:
+            bot.answer_callback_query(call.id, "Эта партия не ваша")
             return
 
         bot_choice = random.choice(["rock", "paper", "scissors"])
@@ -3277,7 +3691,9 @@ def rps_callback(call):
             reply_markup=kb
         )
 
-        bot.answer_callback_query(call.id)
+        rps_games.pop(gid, None)
+        bot.answer_callback_query(call.id, "Игра окончена")
+        return
 
     except Exception as e:
         print("RPS ERROR:", e)
@@ -3294,6 +3710,7 @@ def sys_set_field(call):
 
 @bot.callback_query_handler(func=lambda c: c.data == "tetris_new" or c.data.startswith("tetris_"))
 def tetris_callback(call):
+    _track_callback_game_play(call)
     try:
         data = call.data
         if data == "tetris_new":
@@ -3364,6 +3781,7 @@ def tetris_callback(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("g2048_"))
 def g2048_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_", 2)
         # g2048_new_left OR g2048_<gid>_left
@@ -3455,6 +3873,7 @@ def inline_pong(query):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("pong_"))
 def pong_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_", 2)
         gid = parts[1]
@@ -3531,6 +3950,7 @@ def pong_callback(call):
 # ------------------- MILLIONAIRE HANDLER -------------------
 @bot.callback_query_handler(func=lambda c: c.data.startswith("millionaire_"))
 def millionaire_callback(call):
+    _track_callback_game_play(call)
     try:
         _, game_id, index = call.data.split("_")
         index = int(index)
@@ -3776,6 +4196,7 @@ def inline_hangman(query):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("hangman_"))
 def hangman_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_")
         action = parts[1]
@@ -4075,6 +4496,16 @@ def inline_mafia_game(query):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("mafia_"))
 def mafia_callback(call):
+    _track_callback_game_play(call)
+    def _safe_ack(text=None, show_alert=False):
+        try:
+            bot.answer_callback_query(call.id, text, show_alert=show_alert)
+        except Exception as e:
+            msg = str(e)
+            if "query is too old" in msg or "query ID is invalid" in msg:
+                return
+            print("MAFIA ACK ERROR:", e)
+
     try:
         parts = call.data.split("_")
         action = parts[1] if len(parts) > 1 else ""
@@ -4103,87 +4534,91 @@ def mafia_callback(call):
             game["status"] = "playing"
             game["turn"] = game.get("p1")
 
-            safe_edit_message(call, _bship_render_text(game, uid), reply_markup=_bship_keyboard(gid, game, uid))
-            bot.answer_callback_query(call.id, "Партия началась")
+            ok1, ok2 = _bship_sync_views(gid, game, call=call)
+            if not ok1 or not ok2:
+                _safe_ack("Партия началась. Если нет поля в ЛС — откройте чат с ботом и нажмите Start", show_alert=True)
+            else:
+                _safe_ack("Партия началась. Поля отправлены в ЛС")
             return
 
         if action == "new":
             if uid not in (game.get("p1"), game.get("p2")):
-                bot.answer_callback_query(call.id, "Это не ваша партия")
+                _safe_ack("\u042d\u0442\u043e \u043d\u0435 \u0432\u0430\u0448\u0430 \u043f\u0430\u0440\u0442\u0438\u044f")
                 return
-            new_game = _chess_new_game(uid, call.from_user.first_name or call.from_user.username or str(uid))
-            chess_games[gid] = new_game
-            safe_edit_message(call, _chess_render_text(new_game), reply_markup=_chess_keyboard(gid, new_game))
-            bot.answer_callback_query(call.id, "Новая партия")
+
+            size = game.get("size", 5)
+            ships_count = game.get("ships_count", 5)
+            p1 = game.get("p1")
+            p2 = game.get("p2")
+
+            if not p2:
+                game.update(_bship_new_game(p1, game.get("p1_name", "\u0418\u0433\u0440\u043e\u043a 1"), size=size, ships_count=ships_count))
+                game["turn"] = uid
+                game["shots"] = {p1: set()}
+            else:
+                game["status"] = "playing"
+                game["ships"] = {
+                    p1: _bship_random_ships(size, ships_count),
+                    p2: _bship_random_ships(size, ships_count),
+                }
+                game["shots"] = {p1: set(), p2: set()}
+            game["turn"] = p1
+            game["winner"] = None
+
+            _bship_sync_views(gid, game, call=call)
+            _safe_ack("Новая партия. Обновил поля в ЛС")
             return
 
-        if action == "reset":
+        if action == "shot":
+            if len(parts) < 5:
+                _safe_ack("Неверный ход")
+                return
             if game.get("status") != "playing":
-                bot.answer_callback_query(call.id)
+                _safe_ack("Партия не начата")
+                return
+            if uid != game.get("turn"):
+                _safe_ack("Сейчас не ваш ход")
                 return
             if uid not in (game.get("p1"), game.get("p2")):
-                bot.answer_callback_query(call.id, "Это не ваша партия")
-                return
-            game["selected"] = None
-            safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
-            bot.answer_callback_query(call.id, "Сброшено")
-            return
-
-        if action == "c":
-            if len(parts) < 5:
-                bot.answer_callback_query(call.id, "Неверный ход")
-                return
-            if game.get("status") != "playing":
-                bot.answer_callback_query(call.id, "Партия не начата")
-                return
-
-            player_color = _chess_get_player_color(game, uid)
-            if player_color is None:
-                bot.answer_callback_query(call.id, "Вы не участник этой партии")
-                return
-            if player_color != game.get("turn"):
-                bot.answer_callback_query(call.id, "Сейчас не ваш ход")
+                _safe_ack("Вы не участник этой партии")
                 return
 
             r = int(parts[3])
             c = int(parts[4])
-            if not _chess_in_bounds(r, c):
-                bot.answer_callback_query(call.id, "Некорректная клетка")
+            size = game.get("size", 5)
+            if r < 0 or c < 0 or r >= size or c >= size:
+                _safe_ack("Некорректная клетка")
                 return
 
-            board = game["board"]
-            selected = game.get("selected")
+            enemy = game.get("p2") if uid == game.get("p1") else game.get("p1")
+            if not enemy:
+                _safe_ack("Ожидаем второго игрока")
+                return
 
-            if selected:
-                sr, sc = selected
-                legal = set(_chess_legal_moves(board, sr, sc))
-                if (r, c) in legal:
-                    _chess_apply_move(game, sr, sc, r, c)
-                    safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
-                    bot.answer_callback_query(call.id, "Ход выполнен")
+            my_shots = game.setdefault("shots", {}).setdefault(uid, set())
+            if (r, c) in my_shots:
+                _safe_ack("Вы уже стреляли сюда")
+                return
+
+            my_shots.add((r, c))
+            enemy_ships = game.setdefault("ships", {}).setdefault(enemy, set())
+
+            if (r, c) in enemy_ships:
+                if enemy_ships.issubset(my_shots):
+                    game["status"] = "ended"
+                    game["winner"] = uid
+                    _bship_sync_views(gid, game, call=call)
+                    _safe_ack("Попадание! Вы победили")
                     return
-                target = board[r][c]
-                if target and target[0] == player_color:
-                    game["selected"] = (r, c)
-                    safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
-                    bot.answer_callback_query(call.id, "Фигура выбрана")
-                    return
-                bot.answer_callback_query(call.id, "Сюда ходить нельзя")
-                return
+                _safe_ack("Попадание! Ходите еще")
+            else:
+                game["turn"] = enemy
+                _safe_ack("Мимо")
 
-            piece = board[r][c]
-            if not piece:
-                bot.answer_callback_query(call.id, "Выберите свою фигуру")
-                return
-            if piece[0] != player_color:
-                bot.answer_callback_query(call.id, "Это фигура соперника")
-                return
-            game["selected"] = (r, c)
-            safe_edit_message(call, _chess_render_text(game), reply_markup=_chess_keyboard(gid, game))
-            bot.answer_callback_query(call.id, "Фигура выбрана")
+            _bship_sync_views(gid, game, call=call)
             return
 
-        bot.answer_callback_query(call.id)
+        _safe_ack()
     except Exception as e:
         print("MAFIA CALLBACK ERROR:", e)
         bot.answer_callback_query(call.id, "Ошибка Мафии")
@@ -4191,6 +4626,7 @@ def mafia_callback(call):
 # Словесная дуэль - присоединение
 @bot.callback_query_handler(func=lambda c: c.data.startswith("wordgame_join_"))
 def wordgame_join(call):
+    _track_callback_game_play(call)
     try:
         gid = call.data.split("_")[2]
         game = word_games.get(gid)
@@ -4215,7 +4651,7 @@ def wordgame_join(call):
             # Клавиатура для ввода
             kb = types.InlineKeyboardMarkup()
             row = []
-            for i, letter in enumerate("абвгдежзийклмнопрстуфхцчшщъыьэюя"):
+            for i, letter in enumerate("абвгдежзийклмнопрстуфхцчшщъyэюя".replace('y','й')):
                 if i % 5 == 0 and i > 0:
                     kb.row(*row)
                     row = []
@@ -4235,6 +4671,7 @@ def wordgame_join(call):
 # Опиши эмодзи - присоединение
 @bot.callback_query_handler(func=lambda c: c.data.startswith("emojigame_join_"))
 def emojigame_join(call):
+    _track_callback_game_play(call)
     try:
         gid = call.data.split("_")[2]
         game = emoji_games.get(gid)
@@ -4269,6 +4706,7 @@ def emojigame_join(call):
 # Викторина - присоединение
 @bot.callback_query_handler(func=lambda c: c.data.startswith("quizgame_join_"))
 def quizgame_join(call):
+    _track_callback_game_play(call)
     try:
         gid = call.data.split("_")[2]
         game = quiz_games.get(gid)
@@ -4342,7 +4780,7 @@ def quizgame_join(call):
         text += f"Игроки ({len(players)}/{game.get('max_players',4)}):\n\n"
         for pid in players:
             name = names.get(pid, "Игрок")
-            status = "✅ ответ готов" if game["answered"].get(pid) else "⌨️ вводит" if game.get("started") else "⏳ ждёт"
+            status = "✅ ответ готов" if game["answered"].get(pid) else "⌨️ вводит"
             text += f"- {name}: {status}\n\n"
         text += "\nНабирайте ответ на клавиатуре ниже." if game.get("started") else "\nЖдём ещё игроков..."
 
@@ -4374,6 +4812,7 @@ def quizgame_join(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("quizgame_start_"))
 def quizgame_start(call):
+    _track_callback_game_play(call)
     try:
         gid = call.data.split("_")[2]
         game = quiz_games.get(gid)
@@ -4424,6 +4863,7 @@ def quizgame_start(call):
 # Викторина - ввод/отправка ответа
 @bot.callback_query_handler(func=lambda c: c.data.startswith("quiz_"))
 def quiz_input(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_", 2)
         if len(parts) < 3:
@@ -4547,6 +4987,7 @@ def quiz_input(call):
 # Комбо-битва - присоединение
 @bot.callback_query_handler(func=lambda c: c.data.startswith("combogame_join_"))
 def combogame_join(call):
+    _track_callback_game_play(call)
     try:
         gid = call.data.split("_")[2]
         game = combo_games.get(gid)
@@ -4602,6 +5043,7 @@ def combogame_join(call):
 # Комбо-битва - выбор атаки
 @bot.callback_query_handler(func=lambda c: c.data.startswith("combo_"))
 def combo_choice(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_")
         gid = parts[1]
@@ -4768,6 +5210,7 @@ def combo_choice(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("wrdl_"))
 def wordle_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_", 3)
         if len(parts) < 3:
@@ -4959,7 +5402,7 @@ def _bship_public_text(game):
         text += f"\nПобедитель: {winner_name}"
     else:
         turn_uid = game.get("turn")
-        turn_name = p1_name if turn_uid == p1 else game.get("p2_name", "Игрок 2")
+        turn_name = p1_name if turn_uid == p1 else p2_name
         text += f"\nХод: {turn_name}"
     text += "\n\nПоля скрыты. Играйте через личные сообщения с ботом."
     return text
@@ -4986,7 +5429,7 @@ def _bship_render_text(game, viewer_id):
     p2_name = game.get("p2_name", "Игрок 2")
 
     text = f"🚢 Морской бой ({size}x{size})\nКораблей: {ships_count} у каждого\n\n"
-    text += f"{p1_name} vs {p2_name if p2 else 'Ожидание второго игрока'}\n"
+    text += f"{p1_name} vs {p2_name}\n"
 
     if game.get("status") == "waiting":
         text += "\nНажмите «Присоединиться», чтобы начать."
@@ -5144,6 +5587,7 @@ def noop_callback(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("bship_"))
 def battleship_callback(call):
+    _track_callback_game_play(call)
     def _safe_ack(text=None, show_alert=False):
         try:
             bot.answer_callback_query(call.id, text, show_alert=show_alert)
@@ -5291,6 +5735,7 @@ def battleship_callback(call):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("chess_"))
 def chess_callback(call):
+    _track_callback_game_play(call)
     try:
         parts = call.data.split("_")
         if len(parts) < 3:
@@ -5429,6 +5874,7 @@ def inline_minesweeper(query):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("minesweeper_"))
 def minesweeper_callback(call):
+    _track_callback_game_play(call)
     try:
         _, gid, x, y = call.data.split("_")
         x, y = int(x), int(y)
@@ -5561,7 +6007,7 @@ def telos_callbacks(call):
             elif len(set(picks)) == 2:
                 result = "✨ Почти!"
             else:
-                result = "🎲 Ещё раз?"
+                result = "🎲"
             bot.answer_callback_query(call.id, f"{roll}\n{result}", show_alert=True)
             return
 
@@ -5661,14 +6107,14 @@ def telos_callbacks(call):
             theme = st.get("settings", {}).get("theme", "classic")
             st["settings"]["theme"] = "neon" if theme == "classic" else "classic"
             _telos_save_state(uid, st)
-            bot.answer_callback_query(call.id, f"Тема: {st['settings']['theme']}")
+            bot.send_message(uid, f"Тема: {st['settings']['theme']}")
             safe_edit_message(call, _telos_home_text(uid), reply_markup=telos_main_menu(), parse_mode="Markdown")
             return
 
         if data == "os_set_reset":
             st = _telos_default_state()
             _telos_save_state(uid, st)
-            bot.answer_callback_query(call.id, "TELOS сброшен")
+            bot.send_message(uid, "TELOS сброшен")
             safe_edit_message(call, _telos_home_text(uid), reply_markup=telos_main_menu(), parse_mode="Markdown")
             return
 
@@ -5712,12 +6158,14 @@ def sys_open(call):
 
 @bot.callback_query_handler(func=lambda c: c.data == "coin_flip")
 def coin_flip(call):
+    _track_callback_game_play(call)
     res = random.choice(["🪙 Орёл","🪙 Решка"])
     bot.edit_message_text(f"Результат: {res}", inline_message_id=call.inline_message_id)
     bot.answer_callback_query(call.id, res)
 
 @bot.callback_query_handler(func=lambda c: c.data == "slot_spin")
 def slot_spin(call):
+    _track_callback_game_play(call)
     symbols = ["🍒", "🍋", "🍉", "⭐", "💎", "7️⃣"]
     roll = [random.choice(symbols) for _ in range(3)]
     text = f"| {' | '.join(roll)} |"
@@ -5813,6 +6261,50 @@ def telos_save_input(message):
         return
 
     bot.send_message(uid, "❌ Неизвестное действие TELOS")
+
+@bot.message_handler(func=lambda m: m.from_user.id in support_chat_wait, content_types=["text", "photo", "video"])
+def support_user_message(message):
+    uid = message.from_user.id
+    mode = support_chat_wait.get(uid)
+    text = (message.text or "").strip()
+    caption = (message.caption or "").strip()
+    if message.content_type == "text" and (not text or text.startswith("/")):
+        return
+
+    if mode == "moderator" and message.content_type != "text":
+        bot.send_message(message.chat.id, "В режиме модератора отправьте текстовое сообщение.")
+        return
+
+    support_chat_wait.pop(uid, None)
+    user_link = f"@{message.from_user.username}" if message.from_user.username else "без username"
+    user_name = message.from_user.first_name or "Пользователь"
+    mode_label = "Модератору" if mode == "moderator" else "Проблема"
+    payload = (
+        f"📩 <b>Новое обращение в поддержку</b>\n"
+        f"Тип: <b>{mode_label}</b>\n"
+        f"ID: <code>{uid}</code>\n"
+        f"Имя: {html.escape(user_name)}\n"
+        f"Username: {html.escape(user_link)}\n"
+        f"Контент: <b>{message.content_type}</b>\n\n"
+        f"<i>Ответить:</i> <code>/reply {uid} ваш_ответ</code>"
+    )
+
+    sent = 0
+    for admin_id in SUPPORT_ADMIN_IDS:
+        try:
+            bot.send_message(admin_id, payload, parse_mode="HTML")
+            # Forward original message so moderator sees exact user text/media.
+            bot.forward_message(admin_id, message.chat.id, message.message_id)
+            if caption and message.content_type in ("photo", "video"):
+                bot.send_message(admin_id, f"Подпись:\n{html.escape(caption)}", parse_mode="HTML")
+            sent += 1
+        except Exception:
+            pass
+
+    if sent:
+        bot.send_message(message.chat.id, "✅ Сообщение отправлено в поддержку. Ожидайте ответ здесь в боте.")
+    else:
+        bot.send_message(message.chat.id, "❌ Сейчас нет доступных операторов поддержки.")
 
 @bot.message_handler(func=lambda m: m.from_user.id in system_notify_wait)
 def sys_save_value(message):
