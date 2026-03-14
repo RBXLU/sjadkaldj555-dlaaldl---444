@@ -14,15 +14,23 @@ from datetime import datetime, timedelta
 import uuid
 from groq import Groq
 from bussines_bot import register_business_handlers
+from room_games import (
+    ROOM_VOTE_GAMES,
+    is_room_game,
+    room_game_start_text,
+    room_game_launch,
+    register_room_game_handlers,
+)
 
 # ---------- BOT SETUP ----------
-TOKEN = "8317148699:AAET2FOHnMzozQ9OiaRglOBewXCq4ziDd_U"
+TOKEN = "8413993403:AAFL8-2J4byWxkEwvvTFzuQ05Pcs6ypncn8"
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook()
 try:
     INLINE_BOT_USERNAME = bot.get_me().username or "minigamesisbot"
 except Exception:
     INLINE_BOT_USERNAME = "minigamesisbot"
+register_room_game_handlers(bot)
 
 # ---------- CONFIGURATION ----------
 GROQ_API_KEY = "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"
@@ -66,17 +74,36 @@ BROADCAST_SETTINGS = {
     "btn_type": "link",  # "link" or "callback"
     "btn_link": "https://t.me/minigamesbottgk"
 }
+ROOM_FREE_TITLE = "Свободно"
+ROOM_TTL_SECONDS = 3600
+ROOM_CODE_LEN = 5
+ROOM_VOTE_SECONDS = 60
+ROOM_MESSAGE_BUFFER = 0
 def _ensure_data_file(path):
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"users": {}, "premium": {}, "ai_cache": {}, "stats": {}}, f, ensure_ascii=False, indent=2)
+            json.dump({
+                "users": {},
+                "premium": {},
+                "ai_cache": {},
+                "stats": {},
+                "global_game_stats": {},
+                "rooms": {"pool": [], "active": {}, "free_title": ROOM_FREE_TITLE},
+            }, f, ensure_ascii=False, indent=2)
 
 def load_data():
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump({"users": {}}, f)
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("users", {})
+    data.setdefault("global_game_stats", {})
+    data.setdefault("premium", {})
+    data.setdefault("rooms", {"pool": [], "active": {}, "free_title": ROOM_FREE_TITLE})
+    return data
 
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -113,6 +140,7 @@ def update_user_streak(user_id, display_name=None):
         rec["display_name"] = str(display_name)[:64]
     users[str(user_id)] = rec
     save_data(d)
+    _check_achievements(user_id, rec)
     return cur
 
 def get_user(uid):
@@ -162,7 +190,103 @@ GAME_TITLES = {
     "combogame": "Комбо-битва",
     "mafia": "Мафия",
     "wordgame": "Словесная дуэль",
+    "reaction": "Блиц-реакция",
+    "blackjack": "Блэкджек",
+    "room_rps": "Камень-ножницы-бумага (чат)",
+    "room_duel": "Быстрая дуэль (чат)",
+    "room_bship": "Морской бой (чат)",
+    "room_quiz": "Викторина (чат)",
+    "room_combo": "Комбо-битва (чат)",
+    "room_mafia": "Мафия (чат)",
 }
+
+SHOP_ITEMS = {
+    "avatar_fire": {"name": "Аватар: Огонь", "type": "avatar", "value": "🔥", "price": 40},
+    "avatar_star": {"name": "Аватар: Звезда", "type": "avatar", "value": "⭐", "price": 40},
+    "avatar_robot": {"name": "Аватар: Робот", "type": "avatar", "value": "🤖", "price": 50},
+    "frame_gold": {"name": "Рамка: Золото", "type": "frame", "value": "gold", "price": 60},
+    "frame_neon": {"name": "Рамка: Неон", "type": "frame", "value": "neon", "price": 70},
+    "theme_dark": {"name": "Тема: Dark", "type": "theme", "value": "dark", "price": 50},
+    "theme_cyber": {"name": "Тема: Cyber", "type": "theme", "value": "cyber", "price": 80},
+    "victory_crown": {"name": "Эффект победы: Корона", "type": "victory", "value": "👑", "price": 90},
+    "victory_trophy": {"name": "Эффект победы: Кубок", "type": "victory", "value": "🏆", "price": 90},
+}
+
+
+def _ensure_profile_fields(rec):
+    if not isinstance(rec, dict):
+        rec = {}
+    if not isinstance(rec.get("inventory"), list):
+        rec["inventory"] = []
+    if "coins" not in rec:
+        rec["coins"] = 0
+    if not isinstance(rec.get("achievements"), dict):
+        rec["achievements"] = {}
+    if "rooms_created" not in rec:
+        rec["rooms_created"] = 0
+    rec["avatar_emoji"] = str(rec.get("avatar_emoji") or "🙂")
+    rec["frame_style"] = str(rec.get("frame_style") or "base")
+    rec["theme_style"] = str(rec.get("theme_style") or "classic")
+    rec["victory_emoji"] = str(rec.get("victory_emoji") or "🎉")
+    return rec
+
+ACHIEVEMENTS = {
+    "first_game": {"title": "Первый шаг", "desc": "Сыграть 1 игру"},
+    "gamer_20": {"title": "Игроман", "desc": "Сыграть 20 игр"},
+    "gamer_100": {"title": "Марафон", "desc": "Сыграть 100 игр"},
+    "collector_5": {"title": "Коллекционер", "desc": "Сыграть в 5 разных игр"},
+    "streak_7": {"title": "Ритм", "desc": "Серия 7 дней"},
+    "coins_200": {"title": "Копилка", "desc": "Накопить 200 монет"},
+    "coins_1000": {"title": "Мешок монет", "desc": "Накопить 1000 монет"},
+    "room_creator": {"title": "Хозяин комнаты", "desc": "Создать 1 комнату"},
+    "blackjack_5": {"title": "Везунчик", "desc": "Выиграть 5 партий в блэкджек"},
+}
+
+def _distinct_games_count(rec):
+    gstats = rec.get("game_stats", {}) if isinstance(rec.get("game_stats", {}), dict) else {}
+    return len([k for k, v in gstats.items() if int((v or {}).get("played", 0) or 0) > 0])
+
+def _get_blackjack_wins(rec):
+    gstats = rec.get("game_stats", {}) if isinstance(rec.get("game_stats", {}), dict) else {}
+    row = gstats.get("blackjack", {}) if isinstance(gstats.get("blackjack", {}), dict) else {}
+    return int(row.get("wins", 0) or 0)
+
+def _check_achievements(uid, rec=None):
+    d = load_data()
+    users = d.setdefault("users", {})
+    rec = _ensure_profile_fields(rec or users.setdefault(str(uid), {}))
+    achievements = rec.setdefault("achievements", {})
+
+    total_games = int(rec.get("games_total", 0) or 0)
+    streak_best = int(rec.get("streak_best", 0) or 0)
+    coins = int(rec.get("coins", 0) or 0)
+    distinct_games = _distinct_games_count(rec)
+    rooms_created = int(rec.get("rooms_created", 0) or 0)
+    bj_wins = _get_blackjack_wins(rec)
+
+    checks = {
+        "first_game": total_games >= 1,
+        "gamer_20": total_games >= 20,
+        "gamer_100": total_games >= 100,
+        "collector_5": distinct_games >= 5,
+        "streak_7": streak_best >= 7,
+        "coins_200": coins >= 200,
+        "coins_1000": coins >= 1000,
+        "room_creator": rooms_created >= 1,
+        "blackjack_5": bj_wins >= 5,
+    }
+
+    changed = False
+    for key, ok in checks.items():
+        if ok and key not in achievements:
+            achievements[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            changed = True
+
+    if changed:
+        rec["achievements"] = achievements
+        users[str(uid)] = rec
+        save_data(d)
+    return rec
 
 def _record_game_play(user_id, game_key, display_name=None, session_id=None):
     if not game_key:
@@ -170,6 +294,7 @@ def _record_game_play(user_id, game_key, display_name=None, session_id=None):
     d = load_data()
     users = d.setdefault("users", {})
     rec = users.setdefault(str(user_id), {})
+    rec = _ensure_profile_fields(rec)
     if display_name:
         rec["display_name"] = str(display_name)[:64]
 
@@ -190,10 +315,12 @@ def _record_game_play(user_id, game_key, display_name=None, session_id=None):
         "session": str(session_id or ""),
     })
     rec["match_history"] = history[-50:]
+    rec["coins"] = int(rec.get("coins", 0) or 0) + 2
 
     global_stats = d.setdefault("global_game_stats", {})
     global_stats[game_key] = int(global_stats.get(game_key, 0) or 0) + 1
     save_data(d)
+    _check_achievements(user_id, rec)
 
 def _record_game_play_once(user_id, game_key, session_id, display_name=None):
     if not game_key:
@@ -216,6 +343,25 @@ def _record_game_play_once(user_id, game_key, session_id, display_name=None):
     users[str(user_id)] = rec
     save_data(d)
     _record_game_play(user_id, game_key, display_name=display_name, session_id=session_id)
+
+def _record_game_result(user_id, game_key, result):
+    if result not in ("wins", "losses", "draws"):
+        return
+    d = load_data()
+    users = d.setdefault("users", {})
+    rec = users.setdefault(str(user_id), {})
+    rec = _ensure_profile_fields(rec)
+    gstats = rec.setdefault("game_stats", {})
+    if not isinstance(gstats, dict):
+        gstats = {}
+        rec["game_stats"] = gstats
+    row = gstats.setdefault(game_key, {"played": 0, "wins": 0, "losses": 0, "draws": 0})
+    row[result] = int(row.get(result, 0) or 0) + 1
+    gstats[game_key] = row
+    rec["game_stats"] = gstats
+    users[str(user_id)] = rec
+    save_data(d)
+    _check_achievements(user_id, rec)
 
 def _game_from_inline_result_id(result_id):
     rid = str(result_id or "").strip().lower()
@@ -311,11 +457,43 @@ def _track_callback_game_play(call):
 def _render_profile_text(uid):
     d = load_data()
     user = d.get("users", {}).get(str(uid), {}) or {}
+    user = _ensure_profile_fields(user)
     total = int(user.get("games_total", 0) or 0)
+    coins = int(user.get("coins", 0) or 0)
+    ach_count = len(user.get("achievements", {}) if isinstance(user.get("achievements", {}), dict) else {})
     gstats = user.get("game_stats", {}) if isinstance(user.get("game_stats", {}), dict) else {}
     history = user.get("match_history", []) if isinstance(user.get("match_history", []), list) else []
+    display_name = user.get("display_name") or f"user_{uid}"
+    avatar = user.get("avatar_emoji", "🙂")
+    frame_style = user.get("frame_style", "base")
+    theme_style = user.get("theme_style", "classic")
+    victory_emoji = user.get("victory_emoji", "🎉")
 
-    lines = [f"👤 Профиль", f"Всего сыграно: {total}"]
+    fav_game = "—"
+    fav_count = 0
+    wins_total = 0
+    losses_total = 0
+    draws_total = 0
+    for gk, row in gstats.items():
+        played = int((row or {}).get("played", 0) or 0)
+        wins_total += int((row or {}).get("wins", 0) or 0)
+        losses_total += int((row or {}).get("losses", 0) or 0)
+        draws_total += int((row or {}).get("draws", 0) or 0)
+        if played > fav_count:
+            fav_count = played
+            fav_game = GAME_TITLES.get(gk, gk)
+    rated_games = wins_total + losses_total
+    winrate = (wins_total * 100.0 / rated_games) if rated_games > 0 else 0.0
+
+    lines = [
+        f"{avatar} Профиль: {display_name}",
+        f"🎮 Всего сыграно: {total}",
+        f"🪙 Монеты: {coins}",
+        f"🏆 Достижения: {ach_count}/{len(ACHIEVEMENTS)}",
+        f"🏅 Любимая игра: {fav_game}" + (f" ({fav_count})" if fav_count else ""),
+        f"📈 Winrate: {winrate:.1f}% (W:{wins_total} L:{losses_total} D:{draws_total})",
+        f"🎨 Оформление: рамка={frame_style}, тема={theme_style}, победа={victory_emoji}",
+    ]
     if gstats:
         lines.append("")
         lines.append("📊 Статистика по играм:")
@@ -340,6 +518,325 @@ def _render_profile_text(uid):
             lines.append(f"• {title} — {at}")
 
     return "\n".join(lines)
+
+def _render_achievements_text(uid):
+    d = load_data()
+    user = d.get("users", {}).get(str(uid), {}) or {}
+    user = _ensure_profile_fields(user)
+    unlocked = user.get("achievements", {}) if isinstance(user.get("achievements", {}), dict) else {}
+
+    total = len(ACHIEVEMENTS)
+    unlocked_count = len(unlocked)
+    lines = [f"🏆 Достижения: {unlocked_count}/{total}"]
+    if unlocked:
+        lines.append("")
+        lines.append("✅ Открыты:")
+        for key, meta in ACHIEVEMENTS.items():
+            if key in unlocked:
+                when = unlocked.get(key, "")
+                lines.append(f"• {meta['title']} — {meta['desc']}" + (f" ({when})" if when else ""))
+    locked = [k for k in ACHIEVEMENTS.keys() if k not in unlocked]
+    if locked:
+        lines.append("")
+        lines.append("🔒 Закрыты:")
+        for key in locked:
+            meta = ACHIEVEMENTS[key]
+            lines.append(f"• {meta['title']} — {meta['desc']}")
+    return "\n".join(lines)
+
+# ------------------- ROOMS -------------------
+
+def _rooms_get_data():
+    d = load_data()
+    rooms = d.setdefault("rooms", {"pool": [], "active": {}, "free_title": ROOM_FREE_TITLE})
+    rooms.setdefault("pool", [])
+    rooms.setdefault("active", {})
+    rooms.setdefault("free_title", ROOM_FREE_TITLE)
+    return d, rooms
+
+def _room_generate_code(rooms):
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    active = rooms.get("active", {}) if isinstance(rooms.get("active", {}), dict) else {}
+    while True:
+        code = "".join(random.choice(alphabet) for _ in range(ROOM_CODE_LEN))
+        if code not in active:
+            return code
+
+def _room_pick_free_chat(rooms):
+    pool = rooms.get("pool", []) if isinstance(rooms.get("pool", []), list) else []
+    active = rooms.get("active", {}) if isinstance(rooms.get("active", {}), dict) else {}
+    busy = {r.get("chat_id") for r in active.values() if isinstance(r, dict)}
+    for chat_id in pool:
+        if chat_id not in busy:
+            return chat_id
+    return None
+
+def _room_find_by_chat(rooms, chat_id):
+    active = rooms.get("active", {}) if isinstance(rooms.get("active", {}), dict) else {}
+    for code, room in active.items():
+        if isinstance(room, dict) and room.get("chat_id") == chat_id:
+            return code, room
+    return None, None
+
+def _room_game_start_text(game_key):
+    if is_room_game(game_key):
+        return room_game_start_text(game_key)
+    if game_key == "ttt":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите крестики-нолики."
+    if game_key == "chess":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите шахматы."
+    if game_key == "bship":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите морской бой."
+    if game_key == "mafia":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите Мафию."
+    if game_key == "wordgame":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите словесную дуэль."
+    if game_key == "quizgame":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите Викторину."
+    if game_key == "combogame":
+        return f"Запуск: напишите <code>@{INLINE_BOT_USERNAME}</code> и выберите комбо-битву."
+    return "Игра выбрана."
+
+def _room_inline_query_for_game(game_key):
+    if is_room_game(game_key):
+        return ""
+    mapping = {
+        "ttt": "крестики-нолики",
+        "chess": "шахматы",
+        "bship": "морской бой",
+        "mafia": "мафия",
+        "wordgame": "словесная дуэль",
+        "quizgame": "викторина",
+        "combogame": "комбо-битва",
+    }
+    return mapping.get(game_key, "")
+
+def _room_launch_kb(game_key):
+    query = _room_inline_query_for_game(game_key)
+    if not query:
+        return None
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("▶️ Запустить игру", switch_inline_query_current_chat=query))
+    return kb
+
+def _room_post_game_prompt(chat_id, code):
+    kb = types.InlineKeyboardMarkup()
+    kb.row(
+        types.InlineKeyboardButton("✅ Да", callback_data=f"room_continue_yes_{code}"),
+        types.InlineKeyboardButton("❌ Нет", callback_data=f"room_continue_no_{code}")
+    )
+    try:
+        msg = bot.send_message(chat_id, "🔁 Продолжаем?", reply_markup=kb)
+        _room_track_message_id(chat_id, getattr(msg, "message_id", None))
+    except Exception:
+        pass
+
+def _room_game_end_kb(code):
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("🏁 Игра завершена", callback_data=f"room_game_end_{code}"))
+    return kb
+
+def _room_track_message_id(chat_id, message_id):
+    if not chat_id or not message_id:
+        return
+    msg_list = room_messages.setdefault(chat_id, [])
+    msg_list.append(message_id)
+    if ROOM_MESSAGE_BUFFER and len(msg_list) > ROOM_MESSAGE_BUFFER:
+        room_messages[chat_id] = msg_list[-ROOM_MESSAGE_BUFFER:]
+
+def _room_start_vote(chat_id, code):
+    options = [title for _, title in ROOM_VOTE_GAMES]
+    keys = [key for key, _ in ROOM_VOTE_GAMES]
+    try:
+        msg = bot.send_poll(chat_id, "Выберите игру голосованием:", options, is_anonymous=False, allows_multiple_answers=False)
+        poll_id = msg.poll.id
+        _room_track_message_id(chat_id, msg.message_id)
+    except Exception:
+        poll_id = None
+        msg = None
+    d, rooms = _rooms_get_data()
+    room = rooms.get("active", {}).get(code, {}) if isinstance(rooms.get("active", {}), dict) else {}
+    room["vote_options"] = keys
+    if poll_id:
+        room["poll_id"] = poll_id
+        room_polls[poll_id] = {"code": code, "options": keys}
+    rooms["active"][code] = room
+    save_data(d)
+
+    def finalize():
+        time.sleep(ROOM_VOTE_SECONDS)
+        _room_finalize_vote(code)
+    Thread(target=finalize, daemon=True).start()
+
+def _room_finalize_vote(code):
+    d, rooms = _rooms_get_data()
+    room = rooms.get("active", {}).get(code)
+    if not isinstance(room, dict):
+        return
+    if room.get("game"):
+        return
+    options = room.get("vote_options", [])
+    votes = room.get("votes", {})
+    if not options:
+        return
+    tally = {i: 0 for i in range(len(options))}
+    if isinstance(votes, dict):
+        for _, opt in votes.items():
+            try:
+                idx = int(opt)
+                if idx in tally:
+                    tally[idx] += 1
+            except Exception:
+                pass
+    if tally and max(tally.values()) > 0:
+        top = [i for i, v in tally.items() if v == max(tally.values())]
+        winner_idx = random.choice(top)
+    else:
+        winner_idx = random.randrange(0, len(options))
+    chosen_key = options[winner_idx]
+    room["game"] = chosen_key
+    room["status"] = "active"
+    rooms["active"][code] = room
+    save_data(d)
+    try:
+        msg1 = bot.send_message(
+            room["chat_id"],
+            f"✅ Выбрана игра: {GAME_TITLES.get(chosen_key, chosen_key)}\n\n{_room_game_start_text(chosen_key)}",
+            parse_mode="HTML"
+        )
+        _room_track_message_id(room["chat_id"], getattr(msg1, "message_id", None))
+        launch_kb = _room_launch_kb(chosen_key)
+        if launch_kb:
+            msg_launch = bot.send_message(
+                room["chat_id"],
+                "Нажмите, чтобы сразу открыть игру в этом чате:",
+                reply_markup=launch_kb
+            )
+            _room_track_message_id(room["chat_id"], getattr(msg_launch, "message_id", None))
+        msg2 = bot.send_message(
+            room["chat_id"],
+            "Когда закончите партию, нажмите кнопку ниже.",
+            reply_markup=_room_game_end_kb(code)
+        )
+        _room_track_message_id(room["chat_id"], getattr(msg2, "message_id", None))
+    except Exception:
+        pass
+
+    # авто-запуск для локальных игр
+    try:
+        if is_room_game(chosen_key):
+            room_game_launch(bot, room["chat_id"], code, room)
+            return
+        if chosen_key == "reaction":
+            _reaction_start(room["chat_id"], room.get("creator_id"))
+        elif chosen_key == "blackjack":
+            state = _bj_new_game(room.get("creator_id"), room["chat_id"])
+            gid = short_id()
+            blackjack_games[gid] = state
+            text = _bj_render_text(state, reveal_dealer=state.get("status") != "playing")
+            kb = _bj_keyboard(gid, state.get("status"))
+            msg = bot.send_message(room["chat_id"], text, reply_markup=kb)
+            _room_track_message_id(room["chat_id"], getattr(msg, "message_id", None))
+    except Exception:
+        pass
+
+def _room_close(code, reason=""):
+    d, rooms = _rooms_get_data()
+    active = rooms.get("active", {}) if isinstance(rooms.get("active", {}), dict) else {}
+    room = active.pop(code, None)
+    if not isinstance(room, dict):
+        return False
+    chat_id = room.get("chat_id")
+
+    try:
+        old_link = room.get("invite_link")
+        if old_link:
+            bot.revoke_chat_invite_link(chat_id, old_link)
+        bot.create_chat_invite_link(chat_id)
+    except Exception:
+        pass
+
+    try:
+        bot.set_chat_title(chat_id, rooms.get("free_title", ROOM_FREE_TITLE))
+    except Exception:
+        pass
+
+    participants = set(room.get("participants", []) or [])
+    participants.update(room_participants.get(chat_id, set()))
+    for uid in participants:
+        try:
+            bot.kick_chat_member(chat_id, uid)
+            bot.unban_chat_member(chat_id, uid)
+        except Exception:
+            pass
+
+    for mid in room_messages.get(chat_id, []):
+        try:
+            bot.delete_message(chat_id, mid)
+        except Exception:
+            pass
+
+    room_messages.pop(chat_id, None)
+    room_participants.pop(chat_id, None)
+    rooms["active"] = active
+    save_data(d)
+
+    try:
+        bot.send_message(chat_id, f"⏳ Пати закрыто. {('Причина: ' + reason) if reason else ''}\nГруппа освобождена.")
+    except Exception:
+        pass
+    return True
+
+def _rooms_watchdog():
+    while True:
+        try:
+            d, rooms = _rooms_get_data()
+            active = rooms.get("active", {}) if isinstance(rooms.get("active", {}), dict) else {}
+            now_ts = time.time()
+            for code, room in list(active.items()):
+                if not isinstance(room, dict):
+                    continue
+                ends_at = float(room.get("ends_at") or 0)
+                if ends_at and now_ts >= ends_at:
+                    _room_close(code, reason="таймер 1 час")
+        except Exception:
+            pass
+        time.sleep(30)
+
+
+def _shop_menu_kb():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("🛍 Открыть магазин", callback_data="shop_open"))
+    return kb
+
+
+def _shop_render_text(uid):
+    d = load_data()
+    rec = d.setdefault("users", {}).setdefault(str(uid), {})
+    rec = _ensure_profile_fields(rec)
+    save_data(d)
+    owned = set(rec.get("inventory", []))
+    lines = [f"🛍 Магазин", f"Ваш баланс: {int(rec.get('coins', 0) or 0)} монет", "", "Доступные товары:"]
+    for item_id, item in SHOP_ITEMS.items():
+        mark = "✅ куплено" if item_id in owned else f"{item['price']} 🪙"
+        lines.append(f"• {item['name']} — {mark}")
+    return "\n".join(lines)
+
+
+def _shop_items_kb(uid):
+    d = load_data()
+    rec = d.setdefault("users", {}).setdefault(str(uid), {})
+    rec = _ensure_profile_fields(rec)
+    save_data(d)
+    owned = set(rec.get("inventory", []))
+    kb = types.InlineKeyboardMarkup()
+    for item_id, item in SHOP_ITEMS.items():
+        if item_id in owned:
+            kb.add(types.InlineKeyboardButton(f"Применить: {item['name']}", callback_data=f"shop_apply_{item_id}"))
+        else:
+            kb.add(types.InlineKeyboardButton(f"Купить: {item['name']} ({item['price']}🪙)", callback_data=f"shop_buy_{item_id}"))
+    kb.add(types.InlineKeyboardButton("🔄 Обновить", callback_data="shop_open"))
+    return kb
 
 def has_premium(uid):
     user = get_user(uid)
@@ -539,6 +1036,13 @@ def is_user_subscribed(user_id):
     except Exception:
         return False
 
+def _is_group_admin(chat_id, user_id):
+    try:
+        member = bot.get_chat_member(chat_id, user_id)
+        return member.status in ("creator", "administrator")
+    except Exception:
+        return False
+
 def inline_subscription_prompt(query):
     """Answer an inline query with a subscribe prompt (used when user not in channel)."""
     url = _channel_url() or "https://t.me/"
@@ -629,6 +1133,7 @@ user_sys_settings = {}      # uid -> {msg, btn, title, gui}
 system_notify_wait = {}     # uid -> "field"
 telos_input_wait = {}       # uid -> {"action": "..."}
 support_chat_wait = {}      # uid -> "moderator" | "issue"
+admin_wait = {}            # uid -> {"action": "..."}
 millionaire_games = {}   # short_id -> {"question":..., "attempts":int}
 user_show_easter_egg = {}  # uid -> bool (для управления отображением пасхалки)
 games_flappy = {}   # gid -> {"bird_y":int,"pipes":[(x,gap)],"score":int}
@@ -640,6 +1145,11 @@ hide_games = {}
 hangman_games = {}  # gid -> {"word": str, "guessed": set(), "wrong": set(), "attempts": int}
 mafia_games = {}    # gid -> mafia game state
 games_tetris = {}   # gid -> {"w","h","board","piece","score","over"}
+reaction_games = {}  # gid -> {"uid","chat_id","started","start_at","msg_id","inline_id"}
+blackjack_games = {}  # gid -> {"uid","chat_id","status","deck","player","dealer"}
+room_polls = {}  # poll_id -> {"code": str, "options": [game_key]}
+room_messages = {}  # chat_id -> [message_id]
+room_participants = {}  # chat_id -> set(user_id)
 
 # Словарь слов для Виселицы с подсказками
 HANGMAN_WORDS = {
@@ -821,6 +1331,133 @@ QUIZ_QUESTIONS = [
 # ------------------- HELPERS -------------------
 def short_id():
     return str(int(time.time()*1000))
+
+# ------------------- BLITZ REACTION -------------------
+def _reaction_keyboard(gid):
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("⚡ ЖМИ!", callback_data=f"reaction_hit_{gid}"))
+    return kb
+
+def _reaction_edit(state, text, reply_markup=None):
+    try:
+        if state.get("inline_id"):
+            bot.edit_message_text(text, inline_message_id=state["inline_id"], reply_markup=reply_markup)
+        elif state.get("msg_id") and state.get("chat_id"):
+            bot.edit_message_text(text, chat_id=state["chat_id"], message_id=state["msg_id"], reply_markup=reply_markup)
+    except Exception:
+        pass
+
+def _reaction_start(chat_id, uid):
+    gid = short_id()
+    state = {"uid": uid, "chat_id": chat_id, "started": False, "start_at": None, "msg_id": None, "inline_id": None}
+    reaction_games[gid] = state
+    try:
+        msg = bot.send_message(chat_id, "⚡ Блиц-реакция\nЖдите сигнала и нажмите кнопку!", reply_markup=_reaction_keyboard(gid))
+        state["msg_id"] = msg.message_id
+        _room_track_message_id(chat_id, msg.message_id)
+    except Exception:
+        state["msg_id"] = None
+
+    def trigger():
+        time.sleep(random.uniform(2.0, 5.0))
+        if gid not in reaction_games:
+            return
+        st = reaction_games[gid]
+        st["started"] = True
+        st["start_at"] = time.time()
+        reaction_games[gid] = st
+        _reaction_edit(st, "⚡ СИГНАЛ! ЖМИ СЕЙЧАС!", reply_markup=_reaction_keyboard(gid))
+
+    Thread(target=trigger, daemon=True).start()
+    return gid
+
+# ------------------- BLACKJACK -------------------
+BJ_SUITS = ["♠", "♥", "♦", "♣"]
+BJ_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
+
+def _bj_make_deck():
+    return [(r, s) for s in BJ_SUITS for r in BJ_RANKS]
+
+def _bj_card_value(rank):
+    if rank in ("J", "Q", "K"):
+        return 10
+    if rank == "A":
+        return 11
+    return int(rank)
+
+def _bj_hand_value(hand):
+    total = 0
+    aces = 0
+    for r, _ in hand:
+        val = _bj_card_value(r)
+        total += val
+        if r == "A":
+            aces += 1
+    while total > 21 and aces > 0:
+        total -= 10
+        aces -= 1
+    return total
+
+def _bj_card_str(card):
+    r, s = card
+    return f"{r}{s}"
+
+def _bj_render_text(state, reveal_dealer=False):
+    player = state.get("player", [])
+    dealer = state.get("dealer", [])
+    player_val = _bj_hand_value(player)
+    if reveal_dealer:
+        dealer_cards = " ".join(_bj_card_str(c) for c in dealer)
+        dealer_val = _bj_hand_value(dealer)
+        dealer_line = f"🃏 Дилер: {dealer_cards} ({dealer_val})"
+    else:
+        if dealer:
+            dealer_cards = _bj_card_str(dealer[0]) + " ??"
+        else:
+            dealer_cards = "??"
+        dealer_line = f"🃏 Дилер: {dealer_cards}"
+    player_cards = " ".join(_bj_card_str(c) for c in player) if player else "—"
+    return (
+        "🃏 Блэкджек\n"
+        f"{dealer_line}\n"
+        f"🙂 Вы: {player_cards} ({player_val})"
+    )
+
+def _bj_keyboard(gid, status):
+    kb = types.InlineKeyboardMarkup()
+    if status == "playing":
+        kb.row(
+            types.InlineKeyboardButton("➕ Взять", callback_data=f"bj_hit_{gid}"),
+            types.InlineKeyboardButton("🛑 Стоп", callback_data=f"bj_stand_{gid}")
+        )
+    else:
+        kb.add(types.InlineKeyboardButton("🔁 Новая партия", callback_data=f"bj_new_{gid}"))
+    return kb
+
+def _bj_new_game(uid, chat_id):
+    deck = _bj_make_deck()
+    random.shuffle(deck)
+    player = [deck.pop(), deck.pop()]
+    dealer = [deck.pop(), deck.pop()]
+    state = {
+        "uid": uid,
+        "chat_id": chat_id,
+        "deck": deck,
+        "player": player,
+        "dealer": dealer,
+        "status": "playing",
+        "result": None,
+        "recorded": False,
+    }
+    player_val = _bj_hand_value(player)
+    dealer_val = _bj_hand_value(dealer)
+    if player_val == 21:
+        state["status"] = "ended"
+        if dealer_val == 21:
+            state["result"] = "draws"
+        else:
+            state["result"] = "wins"
+    return state
 
 def _wordle_new_game(owner_id):
     return {
@@ -1096,6 +1733,7 @@ def main_menu_keyboard():
     kb.add("💬 Режим ИИ", "🐣 Пасхалка")
     kb.add("🪙 Орёл или решка", "🖥 TELOS v1.0")
     kb.add("🔢 Угадай число", "✂ Камень-ножницы-бумага")
+    kb.add("⚡ Блиц-реакция", "🃏 Блэкджек")
     kb.add("🐍 Змейка", "🎰 Казино")
     kb.add("🐦 Flappy Bird", "🔢 2048")
     kb.add("🏓 Пинг-понг", "🕵️‍♀️ Прятки")
@@ -1104,8 +1742,8 @@ def main_menu_keyboard():
     kb.add("⚡ Комбо-битва", "🔔 Ваше уведомление")
     kb.add("🎭 Мафия", "🧱 Тетрис")
     kb.add("🟢 Wordle")
+    kb.add("🏆 Достижения", "🏠 Пати")
     kb.add("🚀 Поддержать автора")
-    kb.add("🛠 Поддержка")
     return kb
 
 def snake_controls():
@@ -1543,7 +2181,7 @@ DEFAULT_LANG = "ru"
 def t(user_id, key):
     # Simple localization helper (fallback returns key)
     TEXT = {
-        "main_menu": "Добро пожаловать в бот с мини-играми! Выберите игру или функцию из меню ниже.",
+        "main_menu": "Добро пожаловать в бота с мини играми!",
     }
     return TEXT.get(key, key)
 
@@ -1569,7 +2207,8 @@ def start(message):
 
     # show localized main menu
     menu_kb = main_menu_keyboard()
-    bot.send_message(message.chat.id, t(uid, "main_menu"), reply_markup=menu_kb)
+    bot.send_message(message.chat.id, t(uid, "main_menu"), reply_markup=_start_info_kb())
+    bot.send_message(message.chat.id, "Выберите игру или функцию из меню ниже.", reply_markup=menu_kb)
 
 @bot.message_handler(commands=["topusers"])
 def topusers_cmd(message):
@@ -1619,10 +2258,89 @@ def profile_cmd(message):
     update_user_streak(uid, message.from_user.first_name or message.from_user.username or str(uid))
     bot.send_message(message.chat.id, _render_profile_text(uid))
 
+
+@bot.message_handler(commands=["shop"])
+def shop_cmd(message):
+    uid = message.from_user.id
+    bot.send_message(message.chat.id, _shop_render_text(uid), reply_markup=_shop_items_kb(uid))
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("shop_"))
+def shop_callbacks(call):
+    try:
+        uid = call.from_user.id
+        data = call.data
+        if data == "shop_open":
+            safe_edit_message(call, _shop_render_text(uid), reply_markup=_shop_items_kb(uid))
+            bot.answer_callback_query(call.id)
+            return
+
+        parts = data.split("_", 2)
+        if len(parts) < 3:
+            bot.answer_callback_query(call.id, "Неверные данные")
+            return
+        action = parts[1]
+        item_id = parts[2]
+        item = SHOP_ITEMS.get(item_id)
+        if not item:
+            bot.answer_callback_query(call.id, "Товар не найден")
+            return
+
+        d = load_data()
+        rec = d.setdefault("users", {}).setdefault(str(uid), {})
+        rec = _ensure_profile_fields(rec)
+        inv = rec.setdefault("inventory", [])
+        coins = int(rec.get("coins", 0) or 0)
+
+        if action == "buy":
+            if item_id in inv:
+                bot.answer_callback_query(call.id, "Уже куплено")
+            elif coins < int(item["price"]):
+                bot.answer_callback_query(call.id, "Недостаточно монет")
+            else:
+                rec["coins"] = coins - int(item["price"])
+                inv.append(item_id)
+                d["users"][str(uid)] = rec
+                save_data(d)
+                bot.answer_callback_query(call.id, f"Покупка: {item['name']}")
+            safe_edit_message(call, _shop_render_text(uid), reply_markup=_shop_items_kb(uid))
+            return
+
+        if action == "apply":
+            if item_id not in inv:
+                bot.answer_callback_query(call.id, "Сначала купите товар")
+                return
+            if item["type"] == "avatar":
+                rec["avatar_emoji"] = item["value"]
+            elif item["type"] == "frame":
+                rec["frame_style"] = item["value"]
+            elif item["type"] == "theme":
+                rec["theme_style"] = item["value"]
+            elif item["type"] == "victory":
+                rec["victory_emoji"] = item["value"]
+            d["users"][str(uid)] = rec
+            save_data(d)
+            safe_edit_message(call, _shop_render_text(uid), reply_markup=_shop_items_kb(uid))
+            bot.answer_callback_query(call.id, f"Применено: {item['name']}")
+            return
+
+        bot.answer_callback_query(call.id, "Неизвестное действие")
+    except Exception as e:
+        print("SHOP CALLBACK ERROR:", e)
+        try:
+            bot.answer_callback_query(call.id, "Ошибка магазина")
+        except Exception:
+            pass
+
 def _admin_panel_kb():
     kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("📊 Сводка", callback_data="admin_stats"))
     kb.add(types.InlineKeyboardButton("👥 Все игроки", callback_data="admin_users"))
     kb.add(types.InlineKeyboardButton("📈 Популярные игры", callback_data="admin_games"))
+    kb.add(types.InlineKeyboardButton("💰 Топ по монетам", callback_data="admin_coins"))
+    kb.add(types.InlineKeyboardButton("🏠 Комнаты", callback_data="admin_rooms"))
+    kb.add(types.InlineKeyboardButton("🧹 Закрыть комнату", callback_data="admin_close_room"))
+    kb.add(types.InlineKeyboardButton("🏆 Достижения", callback_data="admin_achievements"))
     kb.add(types.InlineKeyboardButton("📣 Рассылка", callback_data="admin_broadcast"))
     return kb
 
@@ -1656,6 +2374,34 @@ def admin_panel_callbacks(call):
         return
 
     data = call.data
+    if data == "admin_stats":
+        d = load_data()
+        users = d.get("users", {})
+        total_users = len(users)
+        total_games = 0
+        total_coins = 0
+        premium_count = 0
+        now_ts = time.time()
+        for rec in users.values():
+            if not isinstance(rec, dict):
+                continue
+            total_games += int(rec.get("games_total", 0) or 0)
+            total_coins += int(rec.get("coins", 0) or 0)
+            if int(rec.get("premium_until", 0) or 0) > now_ts:
+                premium_count += 1
+        rooms = d.get("rooms", {})
+        pool_count = len(rooms.get("pool", []) or [])
+        active_count = len(rooms.get("active", {}) or {})
+        text = (
+            "📊 Сводка\n\n"
+            f"👥 Пользователей: {total_users}\n"
+            f"🎮 Сыграно игр: {total_games}\n"
+            f"🪙 Монет в системе: {total_coins}\n"
+            f"💎 Премиум активен: {premium_count}\n"
+            f"🏠 Комнаты: активные {active_count}, пул {pool_count}\n"
+        )
+        safe_edit_message(call, text, reply_markup=_admin_panel_kb())
+        return
     if data == "admin_users":
         d = load_data()
         users = d.get("users", {})
@@ -1687,6 +2433,73 @@ def admin_panel_callbacks(call):
                 text += f"{i}. {GAME_TITLES.get(gk, gk)} — {int(cnt or 0)}\n"
         else:
             text += "Пока нет статистики."
+        safe_edit_message(call, text, reply_markup=_admin_panel_kb())
+        return
+
+    if data == "admin_coins":
+        d = load_data()
+        users = d.get("users", {})
+        rows = []
+        for uid_str, rec in users.items():
+            if not isinstance(rec, dict):
+                continue
+            coins = int(rec.get("coins", 0) or 0)
+            name = rec.get("display_name") or f"user_{uid_str}"
+            rows.append((coins, str(name), uid_str))
+        rows.sort(key=lambda x: (-x[0], x[1].lower()))
+        text = "💰 Топ по монетам:\n\n"
+        if rows:
+            for i, (coins, name, uid_str) in enumerate(rows[:20], 1):
+                text += f"{i}. {name} (ID {uid_str}) — {coins}\n"
+        else:
+            text += "Пока нет данных."
+        safe_edit_message(call, text, reply_markup=_admin_panel_kb())
+        return
+
+    if data == "admin_rooms":
+        d = load_data()
+        rooms = d.get("rooms", {})
+        active = rooms.get("active", {}) or {}
+        text = "🏠 Активные комнаты:\n\n"
+        if active:
+            for code, room in active.items():
+                if not isinstance(room, dict):
+                    continue
+                chat_id = room.get("chat_id")
+                creator = room.get("creator_name") or room.get("creator_id")
+                ends_at = room.get("ends_at")
+                ends_str = datetime.fromtimestamp(ends_at).strftime("%Y-%m-%d %H:%M:%S") if ends_at else "—"
+                text += f"• {code} | chat {chat_id} | {creator} | до {ends_str}\n"
+        else:
+            text += "Нет активных комнат."
+        safe_edit_message(call, text, reply_markup=_admin_panel_kb())
+        return
+
+    if data == "admin_close_room":
+        admin_wait[uid] = {"action": "close_room"}
+        try:
+            bot.answer_callback_query(call.id)
+        except Exception:
+            pass
+        bot.send_message(uid, "Введите код комнаты для закрытия (например: A1B2C):")
+        return
+
+    if data == "admin_achievements":
+        d = load_data()
+        users = d.get("users", {})
+        counts = {k: 0 for k in ACHIEVEMENTS.keys()}
+        for rec in users.values():
+            if not isinstance(rec, dict):
+                continue
+            ach = rec.get("achievements", {})
+            if not isinstance(ach, dict):
+                continue
+            for key in counts.keys():
+                if key in ach:
+                    counts[key] += 1
+        text = "🏆 Достижения (кол-во открытий):\n\n"
+        for key, meta in ACHIEVEMENTS.items():
+            text += f"• {meta['title']}: {counts.get(key, 0)}\n"
         safe_edit_message(call, text, reply_markup=_admin_panel_kb())
         return
 
@@ -1914,6 +2727,90 @@ def chess_menu(message):
 def ai_mode(message):
     bot.send_message(message.chat.id, f"Чтобы использовать режим ИИ — напишите <code>@{INLINE_BOT_USERNAME}</code> в любом чате!", parse_mode="HTML")
 
+@bot.message_handler(func=lambda m: m.text == "ℹ️ Информация о боте")
+def bot_info(message):
+    bot.send_message(
+        message.chat.id,
+        "Этот бот создан для мини-игр в Telegram.\n"
+        "Он позволяет играть одному и с друзьями через inline-режим, "
+        "а также использовать дополнительные функции: профиль, поддержку и рассылку.",
+    )
+
+@bot.message_handler(func=lambda m: m.text == "📋 Скопировать username")
+def copy_bot_username(message):
+    bot.send_message(
+        message.chat.id,
+        f"Username бота: <code>@{INLINE_BOT_USERNAME}</code>\n"
+        "Нажмите и удерживайте, чтобы скопировать.",
+        parse_mode="HTML",
+    )
+
+@bot.message_handler(func=lambda m: m.text == "📖 Инструкция")
+def bot_instruction(message):
+    bot.send_message(
+        message.chat.id,
+        "Как играть:\n"
+        "1. В любом чате введите <code>@{}</code>\n"
+        "2. Выберите игру из inline-списка\n"
+        "3. Отправьте игру в чат и нажимайте кнопки\n"
+        "4. Для личной статистики используйте /profile".format(INLINE_BOT_USERNAME),
+        parse_mode="HTML",
+    )
+
+@bot.message_handler(func=lambda m: m.text == "👤 Профиль")
+def profile_button(message):
+    uid = message.from_user.id
+    update_user_streak(uid, message.from_user.first_name or message.from_user.username or str(uid))
+    bot.send_message(message.chat.id, _render_profile_text(uid))
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("start_"))
+def start_info_callbacks(call):
+    try:
+        data = call.data
+        if data == "start_info":
+            safe_edit_message(
+                call,
+                "Этот бот создан для мини-игр в Telegram.\n"
+                "Он позволяет играть одному и с друзьями, "
+                "полностью бесплатно!",
+                reply_markup=_start_info_kb(),
+            )
+        elif data == "start_instruction":
+            safe_edit_message(
+                call,
+                "Инструкция:\n"
+                "1. Скопируйте юзернейм <code>@{}</code>\n"
+                "2. Выберите игру из списка\n"
+                "3. Нажмите на игру\n"
+                "4. Играйте!".format(INLINE_BOT_USERNAME),
+                parse_mode="HTML",
+                reply_markup=_start_info_kb(),
+            )
+        elif data == "start_username":
+            safe_edit_message(
+                call,
+                f"Скопировать юзернейм:\n<code>@{INLINE_BOT_USERNAME}</code>\n"
+                "Нажмите и удерживайте юзернейм, затем выберите «Копировать».",
+                parse_mode="HTML",
+                reply_markup=_start_info_kb(),
+            )
+        elif data == "start_profile":
+            uid = call.from_user.id
+            update_user_streak(uid, call.from_user.first_name or call.from_user.username or str(uid))
+            safe_edit_message(call, _render_profile_text(uid), reply_markup=_start_info_kb())
+        elif data == "start_shop":
+            uid = call.from_user.id
+            safe_edit_message(call, _shop_render_text(uid), reply_markup=_shop_items_kb(uid))
+        elif data == "start_support":
+            safe_edit_message(call, _support_text(), reply_markup=_support_menu_kb())
+        bot.answer_callback_query(call.id)
+    except Exception as e:
+        print("START INFO CALLBACK ERROR:", e)
+        try:
+            bot.answer_callback_query(call.id, "Ошибка")
+        except Exception:
+            pass
+
 @bot.message_handler(func=lambda m: m.text == "🐣 Пасхалка")
 def pashalka(message):
     bot.send_message(message.chat.id, "Чтобы запустить анимацию пасхалки - напишите <code>@minigamesisbot</code> в любом чате!", parse_mode="HTML")
@@ -2009,6 +2906,22 @@ def _support_mode_prompt(mode):
         "Для отмены: /cancelsupport"
     )
 
+def _start_info_kb():
+    kb = types.InlineKeyboardMarkup()
+    kb.row(
+        types.InlineKeyboardButton("ℹ️ Информация о боте", callback_data="start_info"),
+        types.InlineKeyboardButton("📖 Инструкция", callback_data="start_instruction"),
+    )
+    kb.row(
+        types.InlineKeyboardButton("📋 Скопировать юзернейм", callback_data="start_username"),
+        types.InlineKeyboardButton("👤 Профиль", callback_data="start_profile"),
+    )
+    kb.row(
+        types.InlineKeyboardButton("🛍 Магазин", callback_data="start_shop"),
+        types.InlineKeyboardButton("🛠 Поддержка", callback_data="start_support"),
+    )
+    return kb
+
 @bot.message_handler(commands=["support"])
 def support_command(message):
     bot.send_message(message.chat.id, _support_text(), reply_markup=_support_menu_kb())
@@ -2072,6 +2985,466 @@ def support_admin_reply(message):
 @bot.message_handler(func=lambda m: m.text == "🚀 Поддержать автора")
 def support_donate(message):
     bot.send_message(message.chat.id, "Если вам нравится этот бот, вы можете поддержать автора отправив тон на адрес:\n\n💳 <code>UQDla14mdjvSsjI1KMJ8cktcbn-smuKXwmFJXPdRT95-k4qQ</code>\n\nЗаранее cпасибо вашу поддержку!", parse_mode="HTML")
+
+@bot.message_handler(commands=["achievements"])
+def achievements_cmd(message):
+    bot.send_message(message.chat.id, _render_achievements_text(message.from_user.id))
+
+@bot.message_handler(func=lambda m: m.text == "🏆 Достижения")
+def achievements_btn(message):
+    bot.send_message(message.chat.id, _render_achievements_text(message.from_user.id))
+
+@bot.message_handler(func=lambda m: m.text == "🏠 Пати")
+def room_menu_btn(message):
+    bot.send_message(
+        message.chat.id,
+        "🏠 Пати:\n"
+        "• Создать: /party\n"
+        "• Войти по коду: /party_join <КОД>\n"
+        "• Статус в группе: /party_status\n"
+        "• Для админов групп: /party_register или /party_unregister"
+    )
+
+@bot.message_handler(commands=["party_register"])
+def room_register_cmd(message):
+    if message.chat.type not in ("group", "supergroup"):
+        bot.send_message(message.chat.id, "Команду /party_register можно использовать только в группе.")
+        return
+    if not _is_group_admin(message.chat.id, message.from_user.id):
+        bot.send_message(message.chat.id, "⛔ Только администратор может зарегистрировать пати.")
+        return
+    d, rooms = _rooms_get_data()
+    pool = rooms.get("pool", [])
+    if message.chat.id not in pool:
+        pool.append(message.chat.id)
+    rooms["pool"] = pool
+    rooms["free_title"] = rooms.get("free_title", ROOM_FREE_TITLE)
+    save_data(d)
+    try:
+        bot.set_chat_title(message.chat.id, rooms.get("free_title", ROOM_FREE_TITLE))
+    except Exception:
+        pass
+    bot.send_message(message.chat.id, "✅ Группа зарегистрирована как пати. Статус: свободно.")
+
+@bot.message_handler(commands=["room_unregister"])
+def room_unregister_cmd(message):
+    if message.chat.type not in ("group", "supergroup"):
+        bot.send_message(message.chat.id, "Команду /room_unregister можно использовать только в группе.")
+        return
+    if not _is_group_admin(message.chat.id, message.from_user.id):
+        bot.send_message(message.chat.id, "⛔ Только администратор может удалить комнату из пула.")
+        return
+    d, rooms = _rooms_get_data()
+    pool = rooms.get("pool", [])
+    if message.chat.id in pool:
+        pool = [cid for cid in pool if cid != message.chat.id]
+        rooms["pool"] = pool
+        save_data(d)
+        bot.send_message(message.chat.id, "✅ Группа удалена из пула комнат.")
+    else:
+        bot.send_message(message.chat.id, "ℹ️ Эта группа не зарегистрирована.")
+
+@bot.message_handler(commands=["room_status"])
+def room_status_cmd(message):
+    if message.chat.type not in ("group", "supergroup"):
+        bot.send_message(message.chat.id, "Команда доступна только в группе.")
+        return
+    d, rooms = _rooms_get_data()
+    code, room = _room_find_by_chat(rooms, message.chat.id)
+    if not room:
+        bot.send_message(message.chat.id, "ℹ️ Эта группа сейчас свободна.")
+        return
+    ends_at = room.get("ends_at")
+    ends_str = datetime.fromtimestamp(ends_at).strftime("%Y-%m-%d %H:%M:%S") if ends_at else "—"
+    bot.send_message(message.chat.id, f"🔒 Пати занят\nКод: {code}\nДо: {ends_str}")
+
+@bot.message_handler(commands=["end"])
+def room_end_cmd(message):
+    if message.chat.type not in ("group", "supergroup"):
+        bot.send_message(message.chat.id, "Команда /end работает только в группе.")
+        return
+    if not _is_group_admin(message.chat.id, message.from_user.id):
+        bot.send_message(message.chat.id, "⛔ Только администратор может завершить пати.")
+        return
+    d, rooms = _rooms_get_data()
+    code, room = _room_find_by_chat(rooms, message.chat.id)
+    if not room:
+        bot.send_message(message.chat.id, "ℹ️ В этой группе нет активной пати.")
+        return
+    bot.send_message(message.chat.id, "⏳ Завершаю пати и очищаю участников...")
+    _room_close(code, reason="завершено вручную")
+
+@bot.message_handler(commands=["party_create"])
+def party_create_cmd(message):
+    if message.chat.type != "private":
+        bot.send_message(message.chat.id, "Создание пати доступно только в личных сообщениях.")
+        return
+    d, rooms = _rooms_get_data()
+    chat_id = _room_pick_free_chat(rooms)
+    if not chat_id:
+        bot.send_message(message.chat.id, "❌ Нет свободных групп. Попробуйте через 5 минут.")
+        return
+    code = _room_generate_code(rooms)
+    creator = message.from_user
+    creator_name = creator.username or creator.first_name or f"user_{creator.id}"
+    now_ts = time.time()
+    room = {
+        "code": code,
+        "chat_id": chat_id,
+        "creator_id": creator.id,
+        "creator_name": creator_name,
+        "created_at": now_ts,
+        "ends_at": now_ts + ROOM_TTL_SECONDS,
+        "status": "voting",
+        "participants": [creator.id],
+    }
+    rooms["active"][code] = room
+    save_data(d)
+
+    try:
+        bot.set_chat_title(chat_id, creator_name[:64])
+    except Exception:
+        pass
+
+    invite_link = None
+    try:
+        invite = bot.create_chat_invite_link(chat_id)
+        invite_link = invite.invite_link if invite else None
+    except Exception:
+        invite_link = None
+
+    if invite_link:
+        d3, rooms3 = _rooms_get_data()
+        room3 = rooms3.get("active", {}).get(code, {})
+        if isinstance(room3, dict):
+            room3["invite_link"] = invite_link
+            rooms3["active"][code] = room3
+            save_data(d3)
+        bot.send_message(
+            message.chat.id,
+            f"✅ Пати создан!\nКод: {code}\nСсылка для входа: {invite_link}\n"
+            "В группе запускается голосование за игру."
+        )
+    else:
+        bot.send_message(
+            message.chat.id,
+            f"✅ Пати создан!\nКод: {code}\n"
+            "Не удалось создать ссылку — проверьте права бота в группе."
+        )
+
+    # обновим статистику
+    d2 = load_data()
+    rec = d2.setdefault("users", {}).setdefault(str(creator.id), {})
+    rec = _ensure_profile_fields(rec)
+    rec["rooms_created"] = int(rec.get("rooms_created", 0) or 0) + 1
+    d2["users"][str(creator.id)] = rec
+    save_data(d2)
+    _check_achievements(creator.id, rec)
+
+    try:
+        bot.send_message(chat_id, f"🏠 Пати создан для {creator_name}\nКод пати: {code}\nГолосование за игру стартует сейчас.")
+    except Exception:
+        pass
+    _room_start_vote(chat_id, code)
+
+@bot.message_handler(commands=["room_join"])
+def room_join_cmd(message):
+    if message.chat.type != "private":
+        bot.send_message(message.chat.id, "Вход по коду доступен только в личных сообщениях.")
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "Использование: /room_join <КОД>")
+        return
+    code = parts[1].strip().upper()
+    d, rooms = _rooms_get_data()
+    room = rooms.get("active", {}).get(code)
+    if not isinstance(room, dict):
+        bot.send_message(message.chat.id, "❌ Пати с таким кодом не найден.")
+        return
+    if time.time() > float(room.get("ends_at") or 0):
+        bot.send_message(message.chat.id, "❌ Пати уже закрыто.")
+        return
+    chat_id = room.get("chat_id")
+    invite_link = room.get("invite_link")
+    if not invite_link:
+        try:
+            invite = bot.create_chat_invite_link(chat_id)
+            invite_link = invite.invite_link if invite else None
+        except Exception:
+            invite_link = None
+        if invite_link:
+            room["invite_link"] = invite_link
+            rooms["active"][code] = room
+            save_data(d)
+    if invite_link:
+        bot.send_message(message.chat.id, f"✅ Вход по коду {code}:\n{invite_link}")
+    else:
+        bot.send_message(message.chat.id, "❌ Не удалось создать ссылку. Проверьте права бота в группе.")
+    room_participants.setdefault(chat_id, set()).add(message.from_user.id)
+    if isinstance(room.get("participants", []), list) and message.from_user.id not in room.get("participants", []):
+        room["participants"].append(message.from_user.id)
+        rooms["active"][code] = room
+        save_data(d)
+
+@bot.poll_answer_handler()
+def room_poll_answer_handler(poll_answer):
+    try:
+        poll_id = poll_answer.poll_id
+        info = room_polls.get(poll_id)
+        if not info:
+            return
+        code = info.get("code")
+        option_ids = poll_answer.option_ids or []
+        if not option_ids:
+            return
+        d, rooms = _rooms_get_data()
+        room = rooms.get("active", {}).get(code)
+        if not isinstance(room, dict):
+            return
+        votes = room.get("votes", {})
+        if not isinstance(votes, dict):
+            votes = {}
+        votes[str(poll_answer.user.id)] = int(option_ids[0])
+        room["votes"] = votes
+        rooms["active"][code] = room
+        save_data(d)
+        room_participants.setdefault(room.get("chat_id"), set()).add(poll_answer.user.id)
+    except Exception:
+        pass
+
+# ------------------- BLITZ REACTION HANDLERS -------------------
+@bot.message_handler(commands=["reaction"])
+def reaction_cmd(message):
+    _reaction_start(message.chat.id, message.from_user.id)
+
+@bot.message_handler(func=lambda m: m.text == "⚡ Блиц-реакция")
+def reaction_btn(message):
+    _reaction_start(message.chat.id, message.from_user.id)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("reaction_hit_"))
+def reaction_hit_callback(call):
+    try:
+        gid = call.data.split("_", 2)[2]
+        state = reaction_games.get(gid)
+        if not state:
+            bot.answer_callback_query(call.id, "Игра не найдена.")
+            return
+        if call.from_user.id != state.get("uid"):
+            bot.answer_callback_query(call.id, "Это не ваша игра.")
+            return
+        if not state.get("started"):
+            bot.answer_callback_query(call.id, "Слишком рано!")
+            return
+        rt_ms = int((time.time() - state.get("start_at", time.time())) * 1000)
+        text = f"⚡ Реакция: {rt_ms} мс"
+        _reaction_edit(state, text)
+        _record_game_play(call.from_user.id, "reaction", display_name=call.from_user.first_name or call.from_user.username or str(call.from_user.id), session_id=f"reaction_{gid}")
+        reaction_games.pop(gid, None)
+        try:
+            if call.message and call.message.chat and call.message.chat.type in ("group", "supergroup"):
+                d, rooms = _rooms_get_data()
+                code, room = _room_find_by_chat(rooms, call.message.chat.id)
+                if room and room.get("game") == "reaction":
+                    _room_post_game_prompt(call.message.chat.id, code)
+        except Exception:
+            pass
+        bot.answer_callback_query(call.id, "Готово!")
+    except Exception:
+        try:
+            bot.answer_callback_query(call.id, "Ошибка.")
+        except Exception:
+            pass
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("reaction_begin_"))
+def reaction_begin_callback(call):
+    try:
+        gid = call.data.split("_", 2)[2]
+        state = reaction_games.get(gid)
+        if not state:
+            state = {"uid": call.from_user.id, "chat_id": None, "started": False, "start_at": None, "msg_id": None, "inline_id": None}
+        if call.from_user.id != state.get("uid"):
+            bot.answer_callback_query(call.id, "Это не ваша игра.")
+            return
+        state["inline_id"] = call.inline_message_id
+        state["started"] = False
+        state["start_at"] = None
+        reaction_games[gid] = state
+        _reaction_edit(state, "⚡ Блиц-реакция\nЖдите сигнала и нажмите кнопку!", reply_markup=_reaction_keyboard(gid))
+
+        def trigger():
+            time.sleep(random.uniform(2.0, 5.0))
+            if gid not in reaction_games:
+                return
+            st = reaction_games[gid]
+            st["started"] = True
+            st["start_at"] = time.time()
+            reaction_games[gid] = st
+            _reaction_edit(st, "⚡ СИГНАЛ! ЖМИ СЕЙЧАС!", reply_markup=_reaction_keyboard(gid))
+
+        Thread(target=trigger, daemon=True).start()
+        bot.answer_callback_query(call.id)
+    except Exception:
+        try:
+            bot.answer_callback_query(call.id, "Ошибка.")
+        except Exception:
+            pass
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("room_continue_"))
+def room_continue_callback(call):
+    try:
+        parts = call.data.split("_")
+        if len(parts) < 4:
+            return
+        action = parts[2]
+        code = parts[3]
+        d, rooms = _rooms_get_data()
+        room = rooms.get("active", {}).get(code)
+        if not isinstance(room, dict):
+            bot.answer_callback_query(call.id, "Пати не найден.")
+            return
+        if action == "yes":
+            room["game"] = None
+            room["status"] = "voting"
+            room["votes"] = {}
+            room["poll_id"] = None
+            rooms["active"][code] = room
+            save_data(d)
+            _room_start_vote(room["chat_id"], code)
+            bot.answer_callback_query(call.id, "Новое голосование запущено.")
+            return
+        if action == "no":
+            _room_close(code, reason="завершено игроками")
+            bot.answer_callback_query(call.id, "Пати закрыто.")
+            return
+    except Exception:
+        try:
+            bot.answer_callback_query(call.id, "Ошибка.")
+        except Exception:
+            pass
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("room_game_end_"))
+def room_game_end_callback(call):
+    try:
+        code = call.data.split("_", 3)[3]
+        d, rooms = _rooms_get_data()
+        room = rooms.get("active", {}).get(code)
+        if not isinstance(room, dict):
+            bot.answer_callback_query(call.id, "Пати не найден.")
+            return
+        _room_post_game_prompt(room["chat_id"], code)
+        bot.answer_callback_query(call.id, "Ок, что дальше?")
+    except Exception:
+        try:
+            bot.answer_callback_query(call.id, "Ошибка.")
+        except Exception:
+            pass
+
+# ------------------- BLACKJACK HANDLERS -------------------
+@bot.message_handler(commands=["blackjack"])
+def blackjack_cmd(message):
+    state = _bj_new_game(message.from_user.id, message.chat.id)
+    gid = short_id()
+    blackjack_games[gid] = state
+    reveal = state.get("status") != "playing"
+    text = _bj_render_text(state, reveal_dealer=reveal)
+    kb = _bj_keyboard(gid, state.get("status"))
+    msg = bot.send_message(message.chat.id, text, reply_markup=kb)
+    try:
+        if message.chat.type in ("group", "supergroup"):
+            _room_track_message_id(message.chat.id, getattr(msg, "message_id", None))
+    except Exception:
+        pass
+    if state.get("status") == "ended":
+        _record_game_play(message.from_user.id, "blackjack", display_name=message.from_user.first_name or message.from_user.username or str(message.from_user.id), session_id=f"blackjack_{gid}")
+        _record_game_result(message.from_user.id, "blackjack", state.get("result") or "draws")
+
+@bot.message_handler(func=lambda m: m.text == "🃏 Блэкджек")
+def blackjack_btn(message):
+    blackjack_cmd(message)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("bj_"))
+def blackjack_callback(call):
+    try:
+        parts = call.data.split("_")
+        if len(parts) < 3:
+            return
+        action = parts[1]
+        gid = parts[2]
+        state = blackjack_games.get(gid)
+        if not state:
+            bot.answer_callback_query(call.id, "Игра не найдена.")
+            return
+        if call.from_user.id != state.get("uid"):
+            bot.answer_callback_query(call.id, "Это не ваша игра.")
+            return
+
+        if action == "new":
+            state = _bj_new_game(call.from_user.id, call.message.chat.id)
+            blackjack_games[gid] = state
+            text = _bj_render_text(state, reveal_dealer=False)
+            kb = _bj_keyboard(gid, state.get("status"))
+            safe_edit_message(call, text, reply_markup=kb)
+            bot.answer_callback_query(call.id)
+            return
+
+        if state.get("status") != "playing":
+            bot.answer_callback_query(call.id, "Партия уже завершена.")
+            return
+
+        if action == "hit":
+            deck = state.get("deck", [])
+            if deck:
+                state["player"].append(deck.pop())
+            state["deck"] = deck
+            player_val = _bj_hand_value(state.get("player", []))
+            if player_val > 21:
+                state["status"] = "ended"
+                state["result"] = "losses"
+            blackjack_games[gid] = state
+
+        if action == "stand":
+            deck = state.get("deck", [])
+            dealer = state.get("dealer", [])
+            while _bj_hand_value(dealer) < 17 and deck:
+                dealer.append(deck.pop())
+            state["dealer"] = dealer
+            state["deck"] = deck
+            pval = _bj_hand_value(state.get("player", []))
+            dval = _bj_hand_value(dealer)
+            if dval > 21 or pval > dval:
+                state["result"] = "wins"
+            elif pval < dval:
+                state["result"] = "losses"
+            else:
+                state["result"] = "draws"
+            state["status"] = "ended"
+            blackjack_games[gid] = state
+
+        reveal = state.get("status") != "playing"
+        text = _bj_render_text(state, reveal_dealer=reveal)
+        kb = _bj_keyboard(gid, state.get("status"))
+        safe_edit_message(call, text, reply_markup=kb)
+
+        if state.get("status") == "ended" and not state.get("recorded"):
+            state["recorded"] = True
+            blackjack_games[gid] = state
+            _record_game_play(call.from_user.id, "blackjack", display_name=call.from_user.first_name or call.from_user.username or str(call.from_user.id), session_id=f"blackjack_{gid}")
+            _record_game_result(call.from_user.id, "blackjack", state.get("result") or "draws")
+            try:
+                if call.message and call.message.chat and call.message.chat.type in ("group", "supergroup"):
+                    d, rooms = _rooms_get_data()
+                    code, room = _room_find_by_chat(rooms, call.message.chat.id)
+                    if room and room.get("game") == "blackjack":
+                        _room_post_game_prompt(call.message.chat.id, code)
+            except Exception:
+                pass
+        bot.answer_callback_query(call.id)
+    except Exception:
+        try:
+            bot.answer_callback_query(call.id, "Ошибка.")
+        except Exception:
+            pass
 
 @bot.message_handler(func=lambda m: m.text == "🕵️‍♀️ Прятки")
 def hide_and_seek(message):
@@ -2291,6 +3664,31 @@ def inline_handler(query):
             description="Угадайте слово из 5 букв за 6 попыток",
             input_message_content=types.InputTextMessageContent(_wordle_render_text(wgame)),
             reply_markup=_wordle_keyboard(wgid, wgame)
+        ))
+
+        # Blitz Reaction
+        rgid = short_id()
+        reaction_games[rgid] = {"uid": starter_id, "chat_id": None, "started": False, "start_at": None, "msg_id": None, "inline_id": None}
+        rmarkup = types.InlineKeyboardMarkup()
+        rmarkup.add(types.InlineKeyboardButton("▶️ Начать", callback_data=f"reaction_begin_{rgid}"))
+        results.append(types.InlineQueryResultArticle(
+            id=f"reaction_{rgid}",
+            title="⚡ Блиц-реакция",
+            description="Проверка скорости реакции",
+            input_message_content=types.InputTextMessageContent("⚡ Блиц-реакция\nНажмите «Начать», затем ждите сигнал."),
+            reply_markup=rmarkup
+        ))
+
+        # Blackjack
+        bjid = short_id()
+        bjstate = _bj_new_game(starter_id, None)
+        blackjack_games[bjid] = bjstate
+        results.append(types.InlineQueryResultArticle(
+            id=f"blackjack_{bjid}",
+            title="🃏 Блэкджек",
+            description="Карты против дилера",
+            input_message_content=types.InputTextMessageContent(_bj_render_text(bjstate, reveal_dealer=bjstate.get("status") != "playing")),
+            reply_markup=_bj_keyboard(bjid, bjstate.get("status"))
         ))
 
         # Battleship
@@ -3894,7 +5292,7 @@ def pong_callback(call):
                 state["players"][1] = uid
                 msg = "Вы — Игрок 2 (справа)"
             else:
-                bot.answer_callback_query(call.id, "Комната полна")
+                bot.answer_callback_query(call.id, "Пати заполнен.")
                 return
             if state["players"][0] and state["players"][1]:
                 markup = types.InlineKeyboardMarkup()
@@ -6339,6 +7737,47 @@ def sys_save_value(message):
     user_sys_settings[uid][field] = message.text
     bot.send_message(uid, "✅ Сохранено!")
 
+@bot.message_handler(func=lambda m: m.from_user.id in admin_wait)
+def admin_wait_input(message):
+    uid = message.from_user.id
+    wait = admin_wait.pop(uid, None)
+    if not wait:
+        return
+    action = wait.get("action")
+    if action == "close_room":
+        code = (message.text or "").strip().upper()
+        if not code:
+            bot.send_message(uid, "Код пуст.")
+            return
+        ok = _room_close(code, reason="закрыто админом")
+        if ok:
+            bot.send_message(uid, f"✅ Пати {code} закрыто.")
+        else:
+            bot.send_message(uid, f"❌ Пати {code} не найдено.")
+        return
+
+@bot.message_handler(func=lambda m: m.chat and m.chat.type in ("group", "supergroup"))
+def room_track_messages(message):
+    try:
+        d, rooms = _rooms_get_data()
+        code, room = _room_find_by_chat(rooms, message.chat.id)
+        if not room:
+            return
+        chat_id = message.chat.id
+        msg_list = room_messages.setdefault(chat_id, [])
+        msg_list.append(message.message_id)
+        if ROOM_MESSAGE_BUFFER and len(msg_list) > ROOM_MESSAGE_BUFFER:
+            room_messages[chat_id] = msg_list[-ROOM_MESSAGE_BUFFER:]
+        room_participants.setdefault(chat_id, set()).add(message.from_user.id)
+        participants = room.get("participants", [])
+        if isinstance(participants, list) and message.from_user.id not in participants:
+            participants.append(message.from_user.id)
+            room["participants"] = participants
+            rooms["active"][code] = room
+            save_data(d)
+    except Exception:
+        pass
+
     # ------------------- Flask keepalive -------------------
 app = Flask('')
 @app.route('/')
@@ -6357,5 +7796,6 @@ if __name__ == "__main__":
     start_premium_watcher(bot)  # запустится фоновой нитью
     Thread(target=run_flask).start()
     Thread(target=keep_alive, daemon=True).start()
+    Thread(target=_rooms_watchdog, daemon=True).start()
     print("✅ Бот запущен")
     bot.infinity_polling()
