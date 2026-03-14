@@ -1741,8 +1741,8 @@ def main_menu_keyboard():
     kb.add("🔤 Викторина", "♟ Шахматы")
     kb.add("⚡ Комбо-битва", "🔔 Ваше уведомление")
     kb.add("🎭 Мафия", "🧱 Тетрис")
-    kb.add("🟢 Wordle")
     kb.add("🏆 Достижения", "🏠 Пати")
+    kb.add("🟢 Wordle")
     kb.add("🚀 Поддержать автора")
     return kb
 
