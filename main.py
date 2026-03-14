@@ -2821,7 +2821,7 @@ def orel(message):
 
 @bot.message_handler(func=lambda m: m.text == "🔔 Ваше уведомление")
 def notification(message):
-    bot.send_message(message.chat.id, "Чтобы настроить системное уведомление - напишите <code>/messagenot</code>", parse_mode="HTML")
+    bot.send_message(message.chat.id, "Чтобы настроить системное уведомление - напишите <code>/settext</code>", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "🖥 TELOS v1.0")
 def telos(message):
