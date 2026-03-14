@@ -23,7 +23,7 @@ from room_games import (
 )
 
 # ---------- BOT SETUP ----------
-TOKEN = "8413993403:AAFL8-2J4byWxkEwvvTFzuQ05Pcs6ypncn8"
+TOKEN = "8317148699:AAET2FOHnMzozQ9OiaRglOBewXCq4ziDd_U"
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook()
 try:
@@ -33,7 +33,7 @@ except Exception:
 register_room_game_handlers(bot)
 
 # ---------- CONFIGURATION ----------
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 FREE_DAILY_QUOTA = 10
