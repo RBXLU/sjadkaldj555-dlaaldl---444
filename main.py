@@ -369,7 +369,7 @@ def _game_from_inline_result_id(result_id):
         return None
     prefixes = [
         "rps_", "ttt_", "millionaire_", "coin_", "wordle_", "bship_", "chess_",
-        "guess_", "slot_", "snake_", "tetris_", "flappy_", "g2048_", "pong_",
+        "guess_", "slot_", "snake_", "tetris_", "g2048_", "pong_",
         "hangman_", "minesweeper_", "quizgame_", "combogame_", "mafia_", "wordgame_",
     ]
     for p in prefixes:
@@ -433,8 +433,6 @@ def _track_callback_game_play(call):
             game_key, sid = "wordgame", parts[2]
         elif data.startswith("emojigame_join_") and len(parts) >= 3:
             game_key, sid = "wordgame", parts[2]
-        elif data.startswith("flappy_"):
-            game_key = "flappy"
         elif data.startswith("guess_inline_"):
             game_key = "guess"
         elif data == "coin_flip":
@@ -892,32 +890,31 @@ def inc_user_count(user_id):
 
 def pong_game_loop(gid, inline_id):
     while gid in games_pong:
-        state = games_pong[gid]
-        if not state["started"]:
-            time.sleep(0.5)
+        state = games_pong.get(gid)
+        if not state:
+            break
+        if not state.get("started"):
+            time.sleep(0.35)
             continue
 
-        # движение мяча
-        state["ball"][0] += state["ball"][2]
-        state["ball"][1] += state["ball"][3]
-
-        # отражение от стен
-        if state["ball"][1] <= 0 or state["ball"][1] >= 6:
-            state["ball"][3] *= -1
-
+        _pong_step(state)
         try:
             bot.edit_message_text(
-                render_pong_state(state),
+                _render_pong_text(state),
                 inline_message_id=inline_id,
-                reply_markup=types.InlineKeyboardMarkup().row(
-                    types.InlineKeyboardButton("⬅️", callback_data=f"pong_{gid}_L"),
-                    types.InlineKeyboardButton("➡️", callback_data=f"pong_{gid}_R")
-                )
+                reply_markup=_pong_controls_markup(
+                    gid,
+                    started=state.get("started", False),
+                    game_over=state.get("winner") is not None,
+                ),
             )
-        except:
+        except Exception:
             break
 
-        time.sleep(0.5)
+        if state.get("winner"):
+            games_pong.pop(gid, None)
+            break
+        time.sleep(0.6)
 
 def set_premium(user_id, until_timestamp):
     d = load_data()
@@ -1136,7 +1133,7 @@ support_chat_wait = {}      # uid -> "moderator" | "issue"
 admin_wait = {}            # uid -> {"action": "..."}
 millionaire_games = {}   # short_id -> {"question":..., "attempts":int}
 user_show_easter_egg = {}  # uid -> bool (для управления отображением пасхалки)
-games_flappy = {}   # gid -> {"bird_y":int,"pipes":[(x,gap)],"score":int}
+pm_flappy_games = {}  # uid -> local flappy state for private chat
 games_2048 = {}     # gid -> {"board": [[int]]}
 games_pong = {}     # gid -> {"players":[id_or_None,id_or_None],"paddles":[y1,y2],"ball":[x,y,dx,dy],"started":bool}
 user_ai_mode = {}  # user_id -> mode
@@ -2847,9 +2844,30 @@ def snake(message):
 def casino(message):
     bot.send_message(message.chat.id, "Чтобы запустить казино - напишите <code>@minigamesisbot</code> в любом чате!", parse_mode="HTML")
 
+def _start_flappy_pm(chat_id, user_id):
+    state = _new_flappy_state()
+    state["chat_id"] = chat_id
+    state["owner_id"] = user_id
+    state["message_id"] = None
+    state["loop_running"] = False
+    sent = bot.send_message(chat_id, _render_flappy_pm_text(state), reply_markup=_flappy_pm_markup(user_id))
+    state["message_id"] = sent.message_id
+    pm_flappy_games[user_id] = state
+    return state
+
+@bot.message_handler(commands=["flappy"])
+def flappybird_command(message):
+    if message.chat.type != "private":
+        bot.send_message(message.chat.id, f"Эту версию Flappy Bird лучше запускать в ЛС с ботом: <code>@{INLINE_BOT_USERNAME}</code>", parse_mode="HTML")
+        return
+    _start_flappy_pm(message.chat.id, message.from_user.id)
+
 @bot.message_handler(func=lambda m: m.text == "🐦 Flappy Bird")
 def flappybird(message):
-    bot.send_message(message.chat.id, "Чтобы играть в flappy Bird - напишите <code>@minigamesisbot</code> в любом чате!", parse_mode="HTML")
+    if message.chat.type != "private":
+        bot.send_message(message.chat.id, "Чтобы играть в flappy Bird - откройте ЛС с ботом и нажмите эту кнопку там.")
+        return
+    _start_flappy_pm(message.chat.id, message.from_user.id)
 
 @bot.message_handler(func=lambda m: m.text == "🔢 2048")
 def dvsorokvosem(message):
@@ -3795,17 +3813,6 @@ def inline_handler(query):
             )
         ))
 
-        # Flappy preview
-        fp_markup = types.InlineKeyboardMarkup()
-        fp_markup.add(types.InlineKeyboardButton("⬆️ Прыжок (начать)", callback_data="flappy_new"))
-        results.append(types.InlineQueryResultArticle(
-            id=f"flappy_{short_id()}",
-            title="🐦 Flappy Bird",
-            description="Нажми, чтобы начать Flappy Bird",
-            input_message_content=types.InputTextMessageContent("🐦 Flappy Bird\nНажмите кнопку, чтобы начать."),
-            reply_markup=fp_markup
-        ))
-
         # 2048 preview
         preview_markup = types.InlineKeyboardMarkup()
         preview_markup.row(types.InlineKeyboardButton("⬆️", callback_data="g2048_new_up"))
@@ -4010,76 +4017,187 @@ def render_flappy_state(state):
         field[by][2] = "🐦"
     return "\n".join("".join(r) for r in field)
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("flappy_"))
-def flappy_callback(call):
-    _track_callback_game_play(call)
+def _new_flappy_state():
+    return {
+        "bird_y": 5,
+        "velocity": 0.0,
+        "pipes": [(9, 3), (14, 4)],
+        "score": 0,
+        "started": False,
+        "over": False,
+        "loop_running": False,
+        "inline_id": None,
+    }
+
+def _flappy_step(state):
+    state["velocity"] = min(2.6, state.get("velocity", 0.0) + 0.6)
+    state["bird_y"] += state["velocity"]
+
+    new_pipes = []
+    for pipe in state.get("pipes", []):
+        x, gap = pipe
+        x -= 1
+        if x >= -1:
+            new_pipes.append((x, gap))
+        if x == 1:
+            state["score"] += 1
+    state["pipes"] = new_pipes
+
+    if not state["pipes"] or state["pipes"][-1][0] <= 5:
+        state["pipes"].append((9, random.randint(1, 6)))
+
+    by = int(round(state["bird_y"]))
+    if by < 0 or by >= 10:
+        state["over"] = True
+        state["started"] = False
+        return
+
+    for x, gap in state["pipes"]:
+        if x == 2 and not (gap <= by <= gap + 2):
+            state["over"] = True
+            state["started"] = False
+            return
+
+def _flappy_pm_markup(uid, game_over=False):
+    markup = types.InlineKeyboardMarkup()
+    if game_over:
+        markup.row(
+            types.InlineKeyboardButton("🔄 Ещё раз", callback_data=f"flappy_pm_{uid}_restart"),
+            types.InlineKeyboardButton("❌ Закрыть", callback_data=f"flappy_pm_{uid}_close"),
+        )
+        return markup
+    markup.row(
+        types.InlineKeyboardButton("▶️ Старт", callback_data=f"flappy_pm_{uid}_start"),
+        types.InlineKeyboardButton("⬆️ Прыжок", callback_data=f"flappy_pm_{uid}_jump"),
+    )
+    markup.add(types.InlineKeyboardButton("❌ Закрыть", callback_data=f"flappy_pm_{uid}_close"))
+    return markup
+
+def _render_flappy_pm_text(state):
+    lines = [
+        "🐦 Flappy Bird в ЛС",
+        f"Очки: {state['score']}",
+    ]
+    if state.get("over"):
+        lines.append("Игра окончена.")
+    elif not state.get("started"):
+        lines.append("Нажмите «Старт», затем жмите «Прыжок».")
+    lines.append("")
+    lines.append(render_flappy_state(state))
+    return "\n".join(lines)
+
+def _edit_flappy_pm(uid):
+    state = pm_flappy_games.get(uid)
+    if not state:
+        return False
+    chat_id = state.get("chat_id")
+    message_id = state.get("message_id")
+    if not chat_id or not message_id:
+        return False
     try:
-        parts = call.data.split("_", 2)  # flappy_new OR flappy_<gid>_jump
-        if parts[1] == "new":
-            gid = short_id()
-            games_flappy[gid] = {"bird_y":5, "pipes":[(9,3),(13,4)], "score":0}
-            state = games_flappy[gid]
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("⬆️ Прыжок", callback_data=f"flappy_{gid}_jump"))
-            bot.edit_message_text(f"🐦 Flappy Bird\nОчки: {state['score']}\n\n{render_flappy_state(state)}",
-                                  inline_message_id=call.inline_message_id, reply_markup=markup)
-            bot.answer_callback_query(call.id)
-            return
+        bot.edit_message_text(
+            _render_flappy_pm_text(state),
+            chat_id=chat_id,
+            message_id=message_id,
+            reply_markup=_flappy_pm_markup(uid, game_over=state.get("over", False)),
+        )
+        return True
+    except Exception as e:
+        msg = str(e)
+        if "message is not modified" in msg or "specified new message content and reply markup are exactly the same" in msg:
+            return True
+        print("FLAPPY PM EDIT ERROR:", e)
+        return False
 
-        gid = parts[1]
-        action = parts[2] if len(parts) > 2 else "jump"
-        state = games_flappy.get(gid)
+def flappy_pm_loop(uid):
+    while uid in pm_flappy_games:
+        state = pm_flappy_games.get(uid)
         if not state:
-            bot.answer_callback_query(call.id, "Игра не найдена.")
+            break
+        if not state.get("started") or state.get("over"):
+            time.sleep(0.25)
+            continue
+        _flappy_step(state)
+        if not _edit_flappy_pm(uid):
+            break
+        if state.get("over"):
+            break
+        time.sleep(0.8)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("flappy_pm_"))
+def flappy_pm_callback(call):
+    try:
+        parts = str(call.data or "").split("_", 3)  # flappy_pm_<uid>_<action>
+        if len(parts) < 4:
+            bot.answer_callback_query(call.id, "Некорректная команда")
+            return
+        owner_id = int(parts[2])
+        action = parts[3]
+        uid = call.from_user.id
+
+        if uid != owner_id:
+            bot.answer_callback_query(call.id, "Это не ваша игра", show_alert=True)
             return
 
-        # Advance simulation: pipes move left
-        state["pipes"] = [(x-1, gap) for x,gap in state["pipes"]]
-        if state["pipes"] and state["pipes"][-1][0] < 6:
-            state["pipes"].append((9, random.randint(2,6)))
+        state = pm_flappy_games.get(owner_id)
+        if action == "restart":
+            state = _new_flappy_state()
+            state["chat_id"] = call.message.chat.id
+            state["message_id"] = call.message.message_id
+            state["owner_id"] = owner_id
+            pm_flappy_games[owner_id] = state
+            _edit_flappy_pm(owner_id)
+            bot.answer_callback_query(call.id, "Новая игра")
+            return
 
-        # Player action
+        if action == "close":
+            pm_flappy_games.pop(owner_id, None)
+            try:
+                bot.edit_message_text("🐦 Flappy Bird закрыт.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            except Exception:
+                pass
+            bot.answer_callback_query(call.id, "Закрыто")
+            return
+
+        if not state:
+            state = _new_flappy_state()
+            state["chat_id"] = call.message.chat.id
+            state["message_id"] = call.message.message_id
+            state["owner_id"] = owner_id
+            pm_flappy_games[owner_id] = state
+
+        if action == "start":
+            if state.get("started"):
+                bot.answer_callback_query(call.id, "Игра уже идёт")
+                return
+            state["started"] = True
+            state["over"] = False
+            state["velocity"] = 0.0
+            _edit_flappy_pm(owner_id)
+            if not state.get("loop_running"):
+                state["loop_running"] = True
+                Thread(target=flappy_pm_loop, args=(owner_id,), daemon=True).start()
+            bot.answer_callback_query(call.id, "Старт!")
+            return
+
         if action == "jump":
-            state["bird_y"] -= 2
-        # gravity
-        state["bird_y"] += 1
-
-        # scoring: when pipe passes x==1 (just after bird) increment
-        new_pipes = []
-        for x,gap in state["pipes"]:
-            if x >= 0:
-                new_pipes.append((x,gap))
-            if x == 1:
-                state["score"] += 1
-        state["pipes"] = new_pipes
-
-        # collision
-        by = state["bird_y"]
-        collided = False
-        if by < 0 or by >= 10:
-            collided = True
-        else:
-            for x,gap in state["pipes"]:
-                if x == 2:  # bird x pos is 2
-                    if not (gap <= by <= gap+2):
-                        collided = True
-                        break
-
-        if collided:
-            bot.edit_message_text(f"💥 Вы проиграли! Очки: {state['score']}", inline_message_id=call.inline_message_id)
-            games_flappy.pop(gid, None)
-            bot.answer_callback_query(call.id, "Игра окончена")
+            if state.get("over"):
+                bot.answer_callback_query(call.id, "Игра окончена")
+                return
+            if not state.get("started"):
+                state["started"] = True
+                if not state.get("loop_running"):
+                    state["loop_running"] = True
+                    Thread(target=flappy_pm_loop, args=(owner_id,), daemon=True).start()
+            state["velocity"] = -1.8
+            _edit_flappy_pm(owner_id)
+            bot.answer_callback_query(call.id, "Прыжок!")
             return
 
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⬆️ Прыжок", callback_data=f"flappy_{gid}_jump"))
-        bot.edit_message_text(f"🐦 Flappy Bird\nОчки: {state['score']}\n\n{render_flappy_state(state)}",
-                              inline_message_id=call.inline_message_id, reply_markup=markup)
         bot.answer_callback_query(call.id)
     except Exception as e:
-        print("FLAPPY ERROR:", e)
-        bot.answer_callback_query(call.id, "Ошибка игры Flappy")
-
+        print("FLAPPY PM ERROR:", e)
+        bot.answer_callback_query(call.id, "Ошибка Flappy Bird")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("guess_inline_"))
 def guess_inline_callback(call):
@@ -5251,6 +5369,91 @@ def render_pong_state(state):
         field[by][bx] = "⚪"
     return "\n".join("".join(r) for r in field)
 
+def _new_pong_state():
+    return {
+        "players": [None, None],
+        "paddles": [3, 3],
+        "ball": [5, 3, -1, 1],
+        "started": False,
+        "score": [0, 0],
+        "winner": None,
+        "loop_running": False,
+        "inline_id": None,
+    }
+
+def _pong_controls_markup(gid, started=False, game_over=False):
+    markup = types.InlineKeyboardMarkup()
+    if game_over:
+        markup.add(types.InlineKeyboardButton("🔄 Новая игра", callback_data=f"pong_{gid}_restart"))
+        return markup
+    markup.row(
+        types.InlineKeyboardButton("⬆️", callback_data=f"pong_{gid}_U"),
+        types.InlineKeyboardButton("⬇️", callback_data=f"pong_{gid}_D"),
+    )
+    if not started:
+        markup.add(types.InlineKeyboardButton("▶️ Старт", callback_data=f"pong_{gid}_start"))
+    return markup
+
+def _render_pong_text(state):
+    score = state.get("score", [0, 0])
+    lines = [
+        "🏓 Пинг-понг",
+        f"Счёт: {score[0]} : {score[1]}",
+    ]
+    if state.get("winner") is not None:
+        winner_idx = state["winner"] + 1
+        side = "слева" if state["winner"] == 0 else "справа"
+        lines.append(f"Победил Игрок {winner_idx} ({side})")
+    elif not state.get("started"):
+        lines.append("Подключитесь вдвоём и нажмите «Старт».")
+    lines.append("")
+    lines.append(render_pong_state(state))
+    return "\n".join(lines)
+
+def _pong_reset_ball(state, direction=None):
+    dx = direction if direction in (-1, 1) else random.choice([-1, 1])
+    dy = random.choice([-1, 1])
+    state["ball"] = [5, random.randint(1, 5), dx, dy]
+
+def _pong_step(state):
+    W, H = 11, 7
+    p1x, p2x = 1, 9
+    bx, by, dx, dy = state["ball"]
+    bx += dx
+    by += dy
+
+    if by <= 0:
+        by = 0
+        dy = 1
+    elif by >= H - 1:
+        by = H - 1
+        dy = -1
+
+    if bx == p1x and by == state["paddles"][0]:
+        dx = 1
+        bx = p1x + 1
+    elif bx == p2x and by == state["paddles"][1]:
+        dx = -1
+        bx = p2x - 1
+    elif bx < 0:
+        state["score"][1] += 1
+        if state["score"][1] >= 5:
+            state["winner"] = 1
+            state["started"] = False
+        else:
+            _pong_reset_ball(state, direction=1)
+            return
+    elif bx >= W:
+        state["score"][0] += 1
+        if state["score"][0] >= 5:
+            state["winner"] = 0
+            state["started"] = False
+        else:
+            _pong_reset_ball(state, direction=-1)
+            return
+
+    state["ball"] = [bx, by, dx, dy]
+
 @bot.inline_handler(lambda q: q.query.lower() == "pong" or q.query.strip() == "pong" or q.query.lower() == "ping-pong")
 def inline_pong(query):
     # require subscription
@@ -5264,7 +5467,7 @@ def inline_pong(query):
         id=f"pong_preview_{gid}",
         title="🏓 Пинг-понг (2 игрока)",
         description="Нажмите 'Присоединиться' чтобы стать игроком",
-        input_message_content=types.InputTextMessageContent("🏓 Пинг-понг\nНажмите 'Присоединиться' чтобы игра началась."),
+        input_message_content=types.InputTextMessageContent("🏓 Пинг-понг\nНажмите 'Присоединиться', дождитесь второго игрока и начните матч."),
         reply_markup=markup
     )]
     bot.answer_inline_query(query.id, results, cache_time=1, is_personal=True)
@@ -5279,8 +5482,9 @@ def pong_callback(call):
         state = games_pong.get(gid)
         if action == "join":
             if state is None:
-                state = {"players":[None,None], "paddles":[3,3], "ball":[5,3,-1,0], "started":False}
+                state = _new_pong_state()
                 games_pong[gid] = state
+            state["inline_id"] = call.inline_message_id
             uid = call.from_user.id
             if uid in state["players"]:
                 bot.answer_callback_query(call.id, "Вы уже в игре")
@@ -5295,48 +5499,55 @@ def pong_callback(call):
                 bot.answer_callback_query(call.id, "Пати заполнен.")
                 return
             if state["players"][0] and state["players"][1]:
-                markup = types.InlineKeyboardMarkup()
-                markup.row(types.InlineKeyboardButton("⬅️", callback_data=f"pong_{gid}_L"),
-                           types.InlineKeyboardButton("➡️", callback_data=f"pong_{gid}_R"))
-                markup.add(types.InlineKeyboardButton("Старт", callback_data=f"pong_{gid}_start"))
-                bot.edit_message_text("Игроки присоединились. Нажмите Старт.", inline_message_id=call.inline_message_id, reply_markup=markup)
+                safe_edit_message(call, _render_pong_text(state), reply_markup=_pong_controls_markup(gid, started=False))
             else:
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton("Присоединиться", callback_data=f"pong_{gid}_join"))
-                bot.edit_message_text(f"{msg}\nОжидаем второго игрока...", inline_message_id=call.inline_message_id, reply_markup=markup)
+                safe_edit_message(call, f"{msg}\nОжидаем второго игрока...", reply_markup=markup)
             bot.answer_callback_query(call.id, msg)
             return
 
         if state is None:
             bot.answer_callback_query(call.id, "Игра не найдена")
             return
+        state["inline_id"] = call.inline_message_id or state.get("inline_id")
         uid = call.from_user.id
         if uid not in state["players"]:
             bot.answer_callback_query(call.id, "Вы не участник игры")
             return
 
-        if action in ("L","R"):
+        if action == "restart":
+            games_pong[gid] = _new_pong_state()
+            games_pong[gid]["inline_id"] = state.get("inline_id")
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("Присоединиться", callback_data=f"pong_{gid}_join"))
+            safe_edit_message(call, "🏓 Пинг-понг\nНажмите 'Присоединиться' чтобы игра началась.", reply_markup=markup)
+            bot.answer_callback_query(call.id, "Игра сброшена")
+            return
+
+        if action in ("U", "D"):
             pidx = 0 if uid == state["players"][0] else 1
-            if action == "L":
+            if action == "U":
                 state["paddles"][pidx] = max(0, state["paddles"][pidx] - 1)
             else:
                 state["paddles"][pidx] = min(6, state["paddles"][pidx] + 1)
-            markup = types.InlineKeyboardMarkup()
-            markup.row(types.InlineKeyboardButton("⬅️", callback_data=f"pong_{gid}_L"),
-                       types.InlineKeyboardButton("➡️", callback_data=f"pong_{gid}_R"))
-            bot.edit_message_text(render_pong_state(state), inline_message_id=call.inline_message_id, reply_markup=markup)
-            bot.answer_callback_query(call.id, "Paddle moved")
+            safe_edit_message(call, _render_pong_text(state), reply_markup=_pong_controls_markup(gid, started=state.get("started", False)))
+            bot.answer_callback_query(call.id, "Платформа сдвинута")
             return
 
         if action == "start":
             if state["started"]:
                 bot.answer_callback_query(call.id, "Игра уже запущена")
                 return
+            if not all(state["players"]):
+                bot.answer_callback_query(call.id, "Нужны 2 игрока")
+                return
             state["started"] = True
-            markup = types.InlineKeyboardMarkup()
-            markup.row(types.InlineKeyboardButton("⬅️", callback_data=f"pong_{gid}_L"),
-                       types.InlineKeyboardButton("➡️", callback_data=f"pong_{gid}_R"))
-            bot.edit_message_text(render_pong_state(state), inline_message_id=call.inline_message_id, reply_markup=markup)
+            _pong_reset_ball(state)
+            safe_edit_message(call, _render_pong_text(state), reply_markup=_pong_controls_markup(gid, started=True))
+            if not state.get("loop_running") and state.get("inline_id"):
+                state["loop_running"] = True
+                Thread(target=pong_game_loop, args=(gid, state["inline_id"]), daemon=True).start()
             bot.answer_callback_query(call.id, "Старт!")
             return
 
