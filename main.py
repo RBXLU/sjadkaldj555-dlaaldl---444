@@ -226,7 +226,7 @@ def get_game_title(user_id, game_key):
 # ========== END MULTILANGUAGE SYSTEM ==========
 
 # ---------- BOT SETUP ----------
-TOKEN = 8317148699:AAET2FOHnMzozQ9OiaRglOBewXCq4ziDd_U"
+TOKEN = "8317148699:AAET2FOHnMzozQ9OiaRglOBewXCq4ziDd_U"
 bot = telebot.TeleBot(TOKEN)
 bot.delete_webhook()
 try:
