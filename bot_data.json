@@ -2,11 +2,11 @@
   "users": {
     "5782683757": {
       "streak_current": 1,
-      "streak_last_day": "2026-03-07",
+      "streak_last_day": "2026-04-06",
       "streak_best": 5,
       "display_name": "Mr. Пасхалко",
       "count": 0,
-      "date": "2026-03-01",
+      "date": "2026-04-06",
       "premium_until": 0,
       "pending": {
         "f34900c303f24eb09f80ddbc2dc3a269": {
@@ -118,8 +118,8 @@
       "telos": {
         "booted": true,
         "settings": {
-          "os_name": "TELOS",
-          "theme": "classic"
+          "os_name": "Мэллстроі",
+          "theme": "neon"
         },
         "files": [
           {
@@ -128,12 +128,74 @@
           }
         ],
         "notes": [],
-        "terminal_history": [],
+        "terminal_history": [
+          "$ clear",
+          "История очищена."
+        ],
         "mini_games": {
           "guess_target": null
         },
         "created_at": 1772432870
-      }
+      },
+      "tracked_sessions": [
+        "ttt:5782683757",
+        "ttt:1774552151392",
+        "rps:1774728788049",
+        "slot:AgAAANkhfTH_____HgAAAO55jEaZc05I"
+      ],
+      "inventory": [],
+      "coins": 8,
+      "achievements": {
+        "first_game": "2026-03-26 19:08:09"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "ttt": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "rps": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "slot": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 4,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-26 19:08:09",
+          "session": "5782683757"
+        },
+        {
+          "game": "ttt",
+          "at": "2026-03-26 19:10:33",
+          "session": "1774552151392"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 20:13:21",
+          "session": "1774728788049"
+        },
+        {
+          "game": "slot",
+          "at": "2026-04-06 05:08:20",
+          "session": "AgAAANkhfTH_____HgAAAO55jEaZc05I"
+        }
+      ]
     },
     "6774558397": {
       "streak_current": 7,
@@ -165,9 +227,9 @@
     },
     "6843842522": {
       "streak_current": 1,
-      "streak_last_day": "2026-02-21",
+      "streak_last_day": "2026-03-31",
       "streak_best": 1,
-      "display_name": "Kosuak",
+      "display_name": "𝙿𝚊𝚟𝚎𝚕",
       "telos": {
         "booted": true,
         "settings": {
@@ -197,11 +259,11 @@
     },
     "6695830312": {
       "streak_current": 1,
-      "streak_last_day": "2026-03-07",
+      "streak_last_day": "2026-04-06",
       "streak_best": 2,
       "display_name": "Вы",
       "count": 0,
-      "date": "2026-03-07",
+      "date": "2026-04-03",
       "premium_until": 0,
       "pending": {
         "357135da02e04ecaa9656f79e357a79a": {
@@ -434,7 +496,36 @@
         "created_at": 1771958690
       },
       "daily_date": "2026-03-03",
-      "daily_count": 1
+      "daily_count": 1,
+      "tracked_sessions": [
+        "mafia:1771523522901"
+      ],
+      "inventory": [],
+      "coins": 2,
+      "achievements": {
+        "first_game": "2026-03-27 17:36:34"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "mafia": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 1,
+      "match_history": [
+        {
+          "game": "mafia",
+          "at": "2026-03-27 17:36:34",
+          "session": "1771523522901"
+        }
+      ]
     },
     "6630327084": {
       "streak_current": 1,
@@ -589,9 +680,9 @@
       "started": true
     },
     "8128622150": {
-      "streak_current": 1,
-      "streak_last_day": "2026-02-25",
-      "streak_best": 1,
+      "streak_current": 2,
+      "streak_last_day": "2026-03-29",
+      "streak_best": 2,
       "display_name": "Furor",
       "telos": {
         "booted": true,
@@ -611,7 +702,54 @@
           "guess_target": null
         },
         "created_at": 1772051285
-      }
+      },
+      "tracked_sessions": [
+        "slot:AgAAAEbugOQBAAAALoIAACA0QAKxSydP",
+        "snake:AgAAAEbugOQBAAAAfIUAAPN-DN1_DRfl",
+        "snake:AgAAAEbugOQBAAAAf4UAADY8A0GMWmti"
+      ],
+      "inventory": [],
+      "coins": 6,
+      "achievements": {
+        "first_game": "2026-03-28 22:50:44"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "slot": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "snake": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 3,
+      "match_history": [
+        {
+          "game": "slot",
+          "at": "2026-03-28 22:50:44",
+          "session": "AgAAAEbugOQBAAAALoIAACA0QAKxSydP"
+        },
+        {
+          "game": "snake",
+          "at": "2026-03-29 01:08:41",
+          "session": "AgAAAEbugOQBAAAAfIUAAPN-DN1_DRfl"
+        },
+        {
+          "game": "snake",
+          "at": "2026-03-29 01:09:57",
+          "session": "AgAAAEbugOQBAAAAf4UAADY8A0GMWmti"
+        }
+      ]
     },
     "8190640305": {
       "streak_current": 1,
@@ -772,7 +910,7 @@
     },
     "7823055646": {
       "streak_current": 1,
-      "streak_last_day": "2026-02-25",
+      "streak_last_day": "2026-04-06",
       "streak_best": 1,
       "display_name": "Гусь",
       "telos": {
@@ -950,9 +1088,9 @@
     },
     "7501428186": {
       "streak_current": 1,
-      "streak_last_day": "2026-03-01",
+      "streak_last_day": "2026-03-28",
       "streak_best": 1,
-      "display_name": "ᅠ ᅠ❄️"
+      "display_name": "ᅠ ❄️"
     },
     "8580226727": {
       "streak_current": 1,
@@ -967,14 +1105,43 @@
     },
     "8505293943": {
       "streak_current": 1,
-      "streak_last_day": "2026-03-01",
+      "streak_last_day": "2026-03-28",
       "streak_best": 1,
-      "display_name": "...",
+      "display_name": "^-^",
       "count": 0,
-      "date": "2026-03-01",
+      "date": "2026-03-28",
       "premium_until": 0,
       "pending": {},
-      "started": true
+      "started": true,
+      "tracked_sessions": [
+        "ttt:1774713926259"
+      ],
+      "inventory": [],
+      "coins": 2,
+      "achievements": {
+        "first_game": "2026-03-28 16:06:16"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "ttt": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 1,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-28 16:06:16",
+          "session": "1774713926259"
+        }
+      ]
     },
     "83850028": {
       "streak_current": 1,
@@ -1189,6 +1356,762 @@
         },
         "created_at": 1772807892
       }
+    },
+    "1852761595": {
+      "streak_current": 1,
+      "streak_last_day": "2026-03-26",
+      "streak_best": 1,
+      "display_name": "Аᴧᴇᴋᴄᴀндᴩ Бичᴨочʍᴀᴋ | #эчпочмак #царьвинды",
+      "tracked_sessions": [
+        "ttt:5782683757",
+        "ttt:1774552151392"
+      ],
+      "inventory": [],
+      "coins": 4,
+      "achievements": {
+        "first_game": "2026-03-26 19:09:11"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "ttt": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 2,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-26 19:09:11",
+          "session": "5782683757"
+        },
+        {
+          "game": "ttt",
+          "at": "2026-03-26 19:09:45",
+          "session": "1774552151392"
+        }
+      ],
+      "count": 0,
+      "date": "2026-03-26",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "5669044433": {
+      "streak_current": 1,
+      "streak_last_day": "2026-03-27",
+      "streak_best": 1,
+      "display_name": "Ваня 🇪🇸🇺🇦",
+      "count": 0,
+      "date": "2026-03-27",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6359267583": {
+      "streak_current": 1,
+      "streak_last_day": "2026-03-27",
+      "streak_best": 1,
+      "display_name": "🌫️",
+      "count": 0,
+      "date": "2026-03-27",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "7120304787": {
+      "streak_current": 1,
+      "streak_last_day": "2026-03-28",
+      "streak_best": 1,
+      "display_name": "#w1nnqRwn",
+      "count": 0,
+      "date": "2026-03-28",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "tracked_sessions": [
+        "ttt:7120304787",
+        "ttt:1774683469241",
+        "chess:1774683549641",
+        "rps:1774683820149",
+        "rps:1774683827984",
+        "rps:1774683831028",
+        "rps:1774683834604",
+        "rps:1774683838185",
+        "rps:1774683841316",
+        "rps:1774683843446"
+      ],
+      "inventory": [],
+      "coins": 20,
+      "achievements": {
+        "first_game": "2026-03-28 07:37:00"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "ttt": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "chess": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "rps": {
+          "played": 7,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 10,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-28 07:37:00",
+          "session": "7120304787"
+        },
+        {
+          "game": "ttt",
+          "at": "2026-03-28 07:38:03",
+          "session": "1774683469241"
+        },
+        {
+          "game": "chess",
+          "at": "2026-03-28 07:39:35",
+          "session": "1774683549641"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:43:47",
+          "session": "1774683820149"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:43:51",
+          "session": "1774683827984"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:43:54",
+          "session": "1774683831028"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:43:58",
+          "session": "1774683834604"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:44:01",
+          "session": "1774683838185"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:44:03",
+          "session": "1774683841316"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:44:05",
+          "session": "1774683843446"
+        }
+      ]
+    },
+    "8144097361": {
+      "tracked_sessions": [
+        "ttt:7120304787",
+        "ttt:1774683469241",
+        "chess:1774683549641",
+        "rps:1774683845594",
+        "rps:1774684049341",
+        "rps:1774684083170"
+      ],
+      "inventory": [],
+      "coins": 12,
+      "achievements": {
+        "first_game": "2026-03-28 07:37:49"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "display_name": "Lazᶻy",
+      "game_stats": {
+        "ttt": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "chess": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "rps": {
+          "played": 3,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 6,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-28 07:37:49",
+          "session": "7120304787"
+        },
+        {
+          "game": "ttt",
+          "at": "2026-03-28 07:37:55",
+          "session": "1774683469241"
+        },
+        {
+          "game": "chess",
+          "at": "2026-03-28 07:39:34",
+          "session": "1774683549641"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:45:21",
+          "session": "1774683845594"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:47:36",
+          "session": "1774684049341"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:48:07",
+          "session": "1774684083170"
+        }
+      ],
+      "streak_current": 1,
+      "streak_last_day": "2026-03-28",
+      "streak_best": 1,
+      "count": 0,
+      "date": "2026-03-28",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "1849221504": {
+      "tracked_sessions": [
+        "ttt:1774683469241",
+        "chess:1774683549641",
+        "rps:1774683841316",
+        "rps:1774683845594"
+      ],
+      "inventory": [],
+      "coins": 8,
+      "achievements": {
+        "first_game": "2026-03-28 07:37:51"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "display_name": "Angel's.",
+      "game_stats": {
+        "ttt": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "chess": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "rps": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 4,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-28 07:37:51",
+          "session": "1774683469241"
+        },
+        {
+          "game": "chess",
+          "at": "2026-03-28 07:39:20",
+          "session": "1774683549641"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:44:02",
+          "session": "1774683841316"
+        },
+        {
+          "game": "rps",
+          "at": "2026-03-28 07:44:07",
+          "session": "1774683845594"
+        }
+      ]
+    },
+    "6988228893": {
+      "tracked_sessions": [
+        "ttt:8505293943",
+        "ttt:1774713926259"
+      ],
+      "inventory": [],
+      "coins": 4,
+      "achievements": {
+        "first_game": "2026-03-28 16:05:26"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "display_name": "CherDak.",
+      "game_stats": {
+        "ttt": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 2,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-28 16:05:26",
+          "session": "8505293943"
+        },
+        {
+          "game": "ttt",
+          "at": "2026-03-28 16:05:33",
+          "session": "1774713926259"
+        }
+      ]
+    },
+    "6894855786": {
+      "tracked_sessions": [
+        "ttt:1774713926259"
+      ],
+      "inventory": [],
+      "coins": 2,
+      "achievements": {
+        "first_game": "2026-03-28 16:06:36"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "display_name": "VIP крутая 😎",
+      "game_stats": {
+        "ttt": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 1,
+      "match_history": [
+        {
+          "game": "ttt",
+          "at": "2026-03-28 16:06:36",
+          "session": "1774713926259"
+        }
+      ]
+    },
+    "5159995897": {
+      "streak_current": 1,
+      "streak_last_day": "2026-03-28",
+      "streak_best": 1,
+      "display_name": "Dmitry",
+      "count": 0,
+      "date": "2026-03-28",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "inventory": [],
+      "coins": 8,
+      "achievements": {
+        "first_game": "2026-03-28 21:30:15"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "blackjack": {
+          "played": 4,
+          "wins": 1,
+          "losses": 3,
+          "draws": 0
+        }
+      },
+      "games_total": 4,
+      "match_history": [
+        {
+          "game": "blackjack",
+          "at": "2026-03-28 21:30:15",
+          "session": "blackjack_1774733410023"
+        },
+        {
+          "game": "blackjack",
+          "at": "2026-03-28 21:30:21",
+          "session": "blackjack_1774733410023"
+        },
+        {
+          "game": "blackjack",
+          "at": "2026-03-28 21:30:24",
+          "session": "blackjack_1774733410023"
+        },
+        {
+          "game": "blackjack",
+          "at": "2026-03-28 21:30:29",
+          "session": "blackjack_1774733410023"
+        }
+      ]
+    },
+    "5490782773": {
+      "tracked_sessions": [
+        "slot:AgAAAEbugOQBAAAALoIAACA0QAKxSydP",
+        "snake:AgAAAEbugOQBAAAAf4UAADY8A0GMWmti"
+      ],
+      "inventory": [],
+      "coins": 4,
+      "achievements": {
+        "first_game": "2026-03-28 22:50:50"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "display_name": "Generator † ⁷³⁰¹¹",
+      "game_stats": {
+        "slot": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "snake": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 2,
+      "match_history": [
+        {
+          "game": "slot",
+          "at": "2026-03-28 22:50:50",
+          "session": "AgAAAEbugOQBAAAALoIAACA0QAKxSydP"
+        },
+        {
+          "game": "snake",
+          "at": "2026-03-29 01:10:00",
+          "session": "AgAAAEbugOQBAAAAf4UAADY8A0GMWmti"
+        }
+      ],
+      "streak_current": 1,
+      "streak_last_day": "2026-03-29",
+      "streak_best": 1
+    },
+    "5506728321": {
+      "streak_current": 1,
+      "streak_last_day": "2026-03-31",
+      "streak_best": 1,
+      "display_name": "sᴛᴀɴ ᴠ",
+      "count": 0,
+      "date": "2026-03-31",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "tracked_sessions": [
+        "chess:1774940932156"
+      ],
+      "inventory": [],
+      "coins": 2,
+      "achievements": {
+        "first_game": "2026-03-31 07:09:14"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "chess": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 1,
+      "match_history": [
+        {
+          "game": "chess",
+          "at": "2026-03-31 07:09:14",
+          "session": "1774940932156"
+        }
+      ]
+    },
+    "1859516727": {
+      "tracked_sessions": [
+        "chess:1774940932156"
+      ],
+      "inventory": [],
+      "coins": 2,
+      "achievements": {
+        "first_game": "2026-03-31 07:09:03"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "display_name": "галантерея",
+      "game_stats": {
+        "chess": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 1,
+      "match_history": [
+        {
+          "game": "chess",
+          "at": "2026-03-31 07:09:03",
+          "session": "1774940932156"
+        }
+      ]
+    },
+    "1719293967": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-01",
+      "streak_best": 1,
+      "display_name": "heta.w.w.",
+      "tracked_sessions": [
+        "slot:AgAAALTPAAAPWHpmiVHwzK-Xd5M",
+        "minesweeper:1775039969269",
+        "tetris:AgAAALjPAAAPWHpmSI5lNm8mhmo",
+        "tetris:1775040016125",
+        "wordle:1775040047854"
+      ],
+      "inventory": [],
+      "coins": 10,
+      "achievements": {
+        "first_game": "2026-04-01 10:38:38"
+      },
+      "rooms_created": 0,
+      "avatar_emoji": "🙂",
+      "frame_style": "base",
+      "theme_style": "classic",
+      "victory_emoji": "🎉",
+      "game_stats": {
+        "slot": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "minesweeper": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "tetris": {
+          "played": 2,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        },
+        "wordle": {
+          "played": 1,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0
+        }
+      },
+      "games_total": 5,
+      "match_history": [
+        {
+          "game": "slot",
+          "at": "2026-04-01 10:38:38",
+          "session": "AgAAALTPAAAPWHpmiVHwzK-Xd5M"
+        },
+        {
+          "game": "minesweeper",
+          "at": "2026-04-01 10:39:40",
+          "session": "1775039969269"
+        },
+        {
+          "game": "tetris",
+          "at": "2026-04-01 10:40:16",
+          "session": "AgAAALjPAAAPWHpmSI5lNm8mhmo"
+        },
+        {
+          "game": "tetris",
+          "at": "2026-04-01 10:40:19",
+          "session": "1775040016125"
+        },
+        {
+          "game": "wordle",
+          "at": "2026-04-01 10:41:55",
+          "session": "1775040047854"
+        }
+      ]
+    },
+    "7604041811": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-02",
+      "streak_best": 1,
+      "display_name": "𝐋Ú𝐍𝐀 𝐍𝐎𝐈𝐑 #NS"
+    },
+    "7114226144": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-02",
+      "streak_best": 1,
+      "display_name": "стёпка",
+      "count": 0,
+      "date": "2026-04-02",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6949400971": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-02",
+      "streak_best": 1,
+      "display_name": "Dertodiznaxe",
+      "count": 0,
+      "date": "2026-04-02",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "839445240": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-02",
+      "streak_best": 1,
+      "display_name": "︎ ‎",
+      "count": 0,
+      "date": "2026-04-02",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "320126060": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-03",
+      "streak_best": 1,
+      "display_name": "Ирина",
+      "count": 0,
+      "date": "2026-04-03",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "6149843119": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-03",
+      "streak_best": 1,
+      "display_name": "▀▄▀▄▀▄ Chora ▄▀▄▀▄▀"
+    },
+    "6626043292": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-04",
+      "streak_best": 1,
+      "display_name": "Мимикс🍓"
+    },
+    "7263458950": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-05",
+      "streak_best": 1,
+      "display_name": "Вероня",
+      "count": 0,
+      "date": "2026-04-05",
+      "premium_until": 0,
+      "pending": {},
+      "started": true,
+      "telos": {
+        "booted": true,
+        "settings": {
+          "os_name": "TELOS",
+          "theme": "classic"
+        },
+        "files": [
+          {
+            "name": "readme.txt",
+            "content": "Добро пожаловать в TELOS! Эта система разработана для демонстрации возможностей бота. Вы можете создавать свои файлы и заметки, а также играть в мини-игры. Наслаждайтесь! :)"
+          }
+        ],
+        "notes": [],
+        "terminal_history": [],
+        "mini_games": {
+          "guess_target": null
+        },
+        "created_at": 1775377799
+      }
+    },
+    "8415477355": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-05",
+      "streak_best": 1,
+      "display_name": "?",
+      "count": 0,
+      "date": "2026-04-05",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
+    },
+    "5626283649": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-05",
+      "streak_best": 1,
+      "display_name": "💢💢"
+    },
+    "5790890482": {
+      "streak_current": 1,
+      "streak_last_day": "2026-04-06",
+      "streak_best": 1,
+      "display_name": "Dzhan",
+      "count": 0,
+      "date": "2026-04-06",
+      "premium_until": 0,
+      "pending": {},
+      "started": true
     }
   },
   "premium": {},
@@ -1197,5 +2120,22 @@
     "btn_text": "",
     "btn_type": "none",
     "btn_link": ""
+  },
+  "global_game_stats": {
+    "ttt": 13,
+    "mafia": 1,
+    "chess": 5,
+    "rps": 13,
+    "blackjack": 4,
+    "slot": 4,
+    "snake": 3,
+    "minesweeper": 1,
+    "tetris": 2,
+    "wordle": 1
+  },
+  "rooms": {
+    "pool": [],
+    "active": {},
+    "free_title": "Свободно"
   }
 }
